@@ -111,6 +111,7 @@ export interface StartingResources {
   coins: number;
   water: number;
   fertilizer: number;
+  reputation: number;
   unlockedPlots: number;
   maxPlots: number;
   seeds: Partial<Record<FlowerId, number>>;
@@ -120,10 +121,19 @@ export const STARTING_RESOURCES: StartingResources = {
   coins: 60,
   water: 12,
   fertilizer: 3,
-  unlockedPlots: 2,
-  maxPlots: 6,
+  reputation: 0,
+  unlockedPlots: 6,
+  maxPlots: 9,
   seeds: {
     daisy: 4,
     tulip: 2,
+    lavender: 0,
+    sunflower: 0,
+    rose: 0,
+    orchid: 0,
   },
 };
+
+export const WATER_UNIT_PRICE = 2;
+export const FERTILIZER_UNIT_PRICE = 15;
+export const PLOT_UNLOCK_COST = 100;
