@@ -14,6 +14,16 @@ import {
 } from '../config/balance';
 import { FLOWERS, getFlower, type FlowerId } from '../config/flowers';
 import {
+  MERCHANT_VISIT_DURATION_SEC,
+  type MerchantId,
+} from '../config/merchants';
+import {
+  canBuyMerchantOffer,
+  generateMerchantOffers,
+  getMerchantState,
+  type MerchantVisit,
+} from '../engine/merchants';
+import {
   calculateBouquetPrice,
   isValidBouquetCount,
   type BouquetCraftResult,
@@ -68,6 +78,8 @@ export interface GameState {
   harvestedFlowers: HarvestedFlower[];
   unlockedRecipes: string[];
   activeOrders: NpcOrder[];
+  merchantVisit: MerchantVisit | null;
+  nextMerchantAt: number;
   minigameCooldowns: MinigameCooldowns;
 }
 
@@ -79,6 +91,9 @@ export interface GameActions {
   craftBouquet: (harvestedIds: string[]) => BouquetCraftResult | null;
   sellFreeBouquet: (harvestedIds: string[]) => BouquetCraftResult | null;
   fulfillOrder: (orderId: string, harvestedIds: string[]) => FulfillOrderResult;
+  syncMerchant: (now?: number) => void;
+  buyMerchantOffer: (offerId: string) => { success: boolean; reason?: string };
+  summonMerchant: (merchantId?: MerchantId) => void;
   buySeed: (flowerId: FlowerId, qty?: number) => boolean;
   buyWater: (qty?: number) => boolean;
   buyFertilizer: (qty?: number) => boolean;
@@ -131,6 +146,8 @@ export function createInitialState(): GameState {
       generateOrder([]),
       generateOrder([]),
     ],
+    merchantVisit: null,
+    nextMerchantAt: Date.now() + 60 * 1000,
     minigameCooldowns: {
       wellReadyAt: 0,
       compostReadyAt: 0,
@@ -418,6 +435,103 @@ export const useGameStore = create<GameStore>()(
         };
       },
 
+      syncMerchant: (now = Date.now()) => {
+        const state = get();
+        const result = getMerchantState({
+          currentVisit: state.merchantVisit,
+          nextMerchantAt: state.nextMerchantAt,
+          unlockedRecipes: state.unlockedRecipes,
+          now,
+        });
+
+        if (
+          result.currentVisit !== state.merchantVisit ||
+          result.nextMerchantAt !== state.nextMerchantAt
+        ) {
+          set({
+            merchantVisit: result.currentVisit,
+            nextMerchantAt: result.nextMerchantAt,
+          });
+        }
+      },
+
+      buyMerchantOffer: (offerId) => {
+        const state = get();
+        if (!state.merchantVisit) {
+          return {
+            success: false,
+            reason: 'No traveling merchant is currently visiting.',
+          };
+        }
+
+        const offerIndex = state.merchantVisit.offers.findIndex(
+          (o) => o.id === offerId
+        );
+        if (offerIndex === -1) {
+          return { success: false, reason: 'Offer not found.' };
+        }
+
+        const offer = state.merchantVisit.offers[offerIndex];
+        const validation = canBuyMerchantOffer(offer, state.coins);
+        if (!validation.canBuy) {
+          return { success: false, reason: validation.reason };
+        }
+
+        let nextSeeds = state.seeds;
+        let nextUnlockedRecipes = state.unlockedRecipes;
+
+        if (offer.type === 'seed' && offer.flowerId) {
+          nextSeeds = {
+            ...state.seeds,
+            [offer.flowerId]:
+              (state.seeds[offer.flowerId] ?? 0) + offer.quantityPerPurchase,
+          };
+        } else if (offer.type === 'recipe_scroll' && offer.recipeKey) {
+          if (!state.unlockedRecipes.includes(offer.recipeKey)) {
+            nextUnlockedRecipes = [...state.unlockedRecipes, offer.recipeKey];
+          }
+        }
+
+        const updatedOffers = state.merchantVisit.offers.map((o) =>
+          o.id === offerId ? { ...o, stock: o.stock - 1 } : o
+        );
+
+        set({
+          coins: state.coins - offer.price,
+          seeds: nextSeeds,
+          unlockedRecipes: nextUnlockedRecipes,
+          merchantVisit: {
+            ...state.merchantVisit,
+            offers: updatedOffers,
+          },
+        });
+
+        haptic('success');
+        return { success: true };
+      },
+
+      summonMerchant: (merchantId) => {
+        const state = get();
+        const chosenId: MerchantId =
+          merchantId ??
+          (state.merchantVisit?.merchantId === 'raccoon' ? 'owl' : 'raccoon');
+        const now = Date.now();
+        const leavesAt = now + MERCHANT_VISIT_DURATION_SEC * 1000;
+        const offers = generateMerchantOffers(chosenId, state.unlockedRecipes);
+
+        set({
+          merchantVisit: {
+            merchantId: chosenId,
+            arrivedAt: now,
+            leavesAt,
+            offers,
+          },
+          nextMerchantAt: leavesAt + 1800 * 1000,
+        });
+
+        haptic('medium');
+      },
+
       buySeed: (flowerId, qty = 1) => {
         if (qty <= 0) return false;
         const state = get();
@@ -539,6 +653,9 @@ export const useGameStore = create<GameStore>()(
             generateOrder(state.unlockedRecipes ?? []),
             generateOrder(state.unlockedRecipes ?? []),
           ];
+        }
+        if (state && !state.nextMerchantAt) {
+          state.nextMerchantAt = Date.now() + 60 * 1000;
         }
       },
       storage: createJSONStorage(() => {

@@ -1,24 +1,37 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameStore } from './game/store/useGameStore';
 import { GardenScene } from './scene/GardenScene';
 import { TopHud } from './ui/hud/TopHud';
 import { BambooWellGame } from './ui/minigames/BambooWellGame';
 import { MoleCompostGame } from './ui/minigames/MoleCompostGame';
+import { MerchantSheet } from './ui/sheets/MerchantSheet';
 import { PlotSheet } from './ui/sheets/PlotSheet';
 import { ResourcesSheet } from './ui/sheets/ResourcesSheet';
 import { ShopSheet } from './ui/sheets/ShopSheet';
 
 export const App: React.FC = () => {
   const activeOrders = useGameStore((s) => s.activeOrders);
+  const syncMerchant = useGameStore((s) => s.syncMerchant);
 
   const [selectedPlotId, setSelectedPlotId] = useState<string | null>(null);
   const [shopOpen, setShopOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'orders' | 'bench' | 'recipes'>('orders');
   const [shopOrderId, setShopOrderId] = useState<string | null>(null);
 
+  const [merchantOpen, setMerchantOpen] = useState(false);
+
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [resourcesTab, setResourcesTab] = useState<'water' | 'fertilizer'>('water');
   const [activeMinigame, setActiveMinigame] = useState<'well' | 'compost' | null>(null);
+
+  // Periodic merchant arrival/departure check
+  useEffect(() => {
+    syncMerchant();
+    const interval = setInterval(() => {
+      syncMerchant();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [syncMerchant]);
 
   const handleSelectShop = () => {
     setShopOrderId(null);
@@ -40,7 +53,10 @@ export const App: React.FC = () => {
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-[#F5EFE6] select-none">
       {/* 1. Frosted-glass Top HUD */}
-      <TopHud onOpenResources={handleOpenResources} />
+      <TopHud
+        onOpenResources={handleOpenResources}
+        onOpenMerchant={() => setMerchantOpen(true)}
+      />
 
       {/* 2. 3D Low-Poly Tabletop Diorama Scene */}
       <GardenScene
@@ -48,6 +64,7 @@ export const App: React.FC = () => {
         onSelectPlot={setSelectedPlotId}
         onSelectShop={handleSelectShop}
         onSelectOrder={handleSelectOrder}
+        onSelectMerchant={() => setMerchantOpen(true)}
       />
 
       {/* 3. Warm Cream Bottom Sheet for Plots */}
@@ -68,7 +85,13 @@ export const App: React.FC = () => {
         }}
       />
 
-      {/* 5. Warm Cream Bottom Sheet for Water & Fertilizer Economy */}
+      {/* 5. Warm Cream Bottom Sheet for Traveling Merchant (Wandering Raccoon / Wise Owl) */}
+      <MerchantSheet
+        isOpen={merchantOpen}
+        onClose={() => setMerchantOpen(false)}
+      />
+
+      {/* 6. Warm Cream Bottom Sheet for Water & Fertilizer Economy */}
       <ResourcesSheet
         isOpen={resourcesOpen}
         activeTab={resourcesTab}
@@ -78,7 +101,7 @@ export const App: React.FC = () => {
         onPlayCompost={() => setActiveMinigame('compost')}
       />
 
-      {/* 6. Resource Minigames */}
+      {/* 7. Resource Minigames */}
       {activeMinigame === 'well' && (
         <BambooWellGame onClose={() => setActiveMinigame(null)} />
       )}
@@ -86,7 +109,7 @@ export const App: React.FC = () => {
         <MoleCompostGame onClose={() => setActiveMinigame(null)} />
       )}
 
-      {/* 7. Floating Action Pill for Quick Access to Shop & Orders */}
+      {/* 8. Floating Action Pill for Quick Access to Shop & Orders */}
       <div className="fixed bottom-4 right-4 z-20 pointer-events-auto">
         <button
           type="button"

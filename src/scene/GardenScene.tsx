@@ -6,6 +6,7 @@ import { AnimalNPC } from './AnimalNPC';
 import { BambooShop } from './BambooShop';
 import { GardenPlot } from './GardenPlot';
 import { TabletopDiorama } from './TabletopDiorama';
+import { TravelingMerchant } from './TravelingMerchant';
 import { WeatherFX } from './WeatherFX';
 
 interface GardenSceneProps {
@@ -13,6 +14,7 @@ interface GardenSceneProps {
   onSelectPlot: (plotId: string | null) => void;
   onSelectShop: () => void;
   onSelectOrder?: (orderId: string) => void;
+  onSelectMerchant?: () => void;
 }
 
 export const GardenScene: React.FC<GardenSceneProps> = ({
@@ -20,9 +22,11 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
   onSelectPlot,
   onSelectShop,
   onSelectOrder,
+  onSelectMerchant,
 }) => {
   const plots = useGameStore((s) => s.plots);
   const activeOrders = useGameStore((s) => s.activeOrders);
+  const merchantVisit = useGameStore((s) => s.merchantVisit);
   const weather = useGameStore((s) => s.weather);
 
   const bgColor = useMemo(() => {
@@ -102,6 +106,14 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
             />
           ))}
         </group>
+
+        {/* 2c. Traveling Merchant (Wandering Raccoon or Wise Owl) */}
+        {merchantVisit && (
+          <TravelingMerchant
+            visit={merchantVisit}
+            onSelectMerchant={onSelectMerchant ?? onSelectShop}
+          />
+        )}
 
         {/* 3. The 9 Raised Garden Plots */}
         <group name="plots-grid">

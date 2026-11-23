@@ -14,14 +14,19 @@ import { getTelegramUser, haptic } from '../../telegram/tma';
 
 interface TopHudProps {
   onOpenResources?: (tab: 'water' | 'fertilizer') => void;
+  onOpenMerchant?: () => void;
 }
 
-export const TopHud: React.FC<TopHudProps> = ({ onOpenResources }) => {
+export const TopHud: React.FC<TopHudProps> = ({
+  onOpenResources,
+  onOpenMerchant,
+}) => {
   const coins = useGameStore((s) => s.coins);
   const water = useGameStore((s) => s.water);
   const fertilizer = useGameStore((s) => s.fertilizer);
   const reputation = useGameStore((s) => s.reputation);
   const weather = useGameStore((s) => s.weather);
+  const merchantVisit = useGameStore((s) => s.merchantVisit);
   const setWeather = useGameStore((s) => s.setWeather);
 
   const tgUser = getTelegramUser();
@@ -51,6 +56,26 @@ export const TopHud: React.FC<TopHudProps> = ({ onOpenResources }) => {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           )}
         </div>
+
+        {/* Traveling Merchant Badge (Visible when a merchant is in town) */}
+        {merchantVisit && (
+          <button
+            type="button"
+            onClick={() => {
+              haptic('light');
+              onOpenMerchant?.();
+            }}
+            className="pointer-events-auto cursor-pointer backdrop-blur-md bg-amber-100/90 hover:bg-amber-200/90 active:scale-95 transition-all border border-amber-300 rounded-full px-3 py-1.5 shadow-sm flex items-center gap-1.5 text-amber-900 animate-pulse font-bold"
+            title="A Traveling Merchant is in town! Tap to inspect caravan wares"
+          >
+            <span className="text-sm">
+              {merchantVisit.merchantId === 'raccoon' ? '🦝' : '🦉'}
+            </span>
+            <span className="truncate max-w-[80px]">
+              {merchantVisit.merchantId === 'raccoon' ? 'Raccoon' : 'Owl'}
+            </span>
+          </button>
+        )}
 
         {/* Clickable Weather Toggle Badge */}
         <button

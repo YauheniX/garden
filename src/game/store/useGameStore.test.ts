@@ -447,6 +447,70 @@ describe('useGameStore', () => {
     });
   });
 
+  describe('traveling merchants', () => {
+    it('summons a merchant and allows purchasing seed offer', () => {
+      useGameStore.setState({ coins: 500, seeds: { ...useGameStore.getState().seeds, sunflower: 0 } });
+      useGameStore.getState().summonMerchant('raccoon');
+
+      const visit = useGameStore.getState().merchantVisit;
+      expect(visit).not.toBeNull();
+      expect(visit?.merchantId).toBe('raccoon');
+      expect(visit?.offers.length).toBeGreaterThan(0);
+
+      // Find an offer
+      const offer = visit!.offers[0];
+      const initialStock = offer.stock;
+      const initialCoins = useGameStore.getState().coins;
+
+      const buyRes = useGameStore.getState().buyMerchantOffer(offer.id);
+      expect(buyRes.success).toBe(true);
+
+      const state = useGameStore.getState();
+      expect(state.coins).toBe(initialCoins - offer.price);
+
+      const updatedOffer = state.merchantVisit?.offers.find((o) => o.id === offer.id);
+      expect(updatedOffer?.stock).toBe(initialStock - 1);
+
+      if (offer.type === 'seed' && offer.flowerId) {
+        expect(state.seeds[offer.flowerId]).toBeGreaterThan(0);
+      }
+    });
+
+    it('allows purchasing a secret recipe scroll from Wise Owl', () => {
+      useGameStore.setState({ coins: 600, unlockedRecipes: [] });
+      useGameStore.getState().summonMerchant('owl');
+
+      const visit = useGameStore.getState().merchantVisit;
+      expect(visit?.merchantId).toBe('owl');
+
+      const scrollOffer = visit?.offers.find((o) => o.type === 'recipe_scroll');
+      if (scrollOffer) {
+        const buyRes = useGameStore.getState().buyMerchantOffer(scrollOffer.id);
+        expect(buyRes.success).toBe(true);
+
+        const state = useGameStore.getState();
+        expect(state.unlockedRecipes).toContain(scrollOffer.recipeKey);
+      }
+    });
+
+    it('syncs merchant state over time, departing when expired', () => {
+      const now = Date.now();
+      useGameStore.setState({
+        merchantVisit: {
+          merchantId: 'raccoon',
+          arrivedAt: now - 100000,
+          leavesAt: now - 10,
+          offers: [],
+        },
+      });
+
+      useGameStore.getState().syncMerchant(now);
+      const state = useGameStore.getState();
+      expect(state.merchantVisit).toBeNull();
+      expect(state.nextMerchantAt).toBeGreaterThan(now);
+    });
+  });
+
   describe('state reset', () => {
     it('resets game state back to clean initial state', () => {
       useGameStore.getState().plantSeed('plot_0', 'daisy');
