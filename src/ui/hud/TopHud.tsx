@@ -1,13 +1,16 @@
 import {
+  AlertTriangle,
   CloudFog,
   CloudRain,
   Coins,
   Droplets,
+  RotateCcw,
   Sparkles,
   Star,
   Sun,
+  X,
 } from 'lucide-react';
-import React from 'react';
+import React, { useState } from 'react';
 import type { WeatherType } from '../../game/config/balance';
 import { useGameStore } from '../../game/store/useGameStore';
 import { getTelegramUser, haptic } from '../../telegram/tma';
@@ -30,6 +33,10 @@ export const TopHud: React.FC<TopHudProps> = ({
   const weather = useGameStore((s) => s.weather);
   const merchantVisit = useGameStore((s) => s.merchantVisit);
   const setWeather = useGameStore((s) => s.setWeather);
+  const resetGame = useGameStore((s) => s.resetGame);
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isConfirmingReset, setIsConfirmingReset] = useState(false);
 
   const tgUser = getTelegramUser();
 
@@ -44,12 +51,43 @@ export const TopHud: React.FC<TopHudProps> = ({
     haptic('light');
   };
 
+  const handleOpenSettings = () => {
+    haptic('light');
+    setIsSettingsOpen(true);
+    setIsConfirmingReset(false);
+  };
+
+  const handleCloseSettings = () => {
+    setIsSettingsOpen(false);
+    setIsConfirmingReset(false);
+  };
+
+  const handleConfirmReset = () => {
+    haptic('heavy');
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.removeItem('panda-florist-save-v1');
+      } catch {
+        // ignore
+      }
+    }
+    resetGame();
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  };
+
   return (
     <header className="fixed top-0 left-0 right-0 z-30 pointer-events-none p-3 max-w-lg mx-auto flex flex-col gap-2">
       {/* Top Meta Bar: Player Greeting & Clickable Weather Switcher */}
       <div className="flex items-center justify-between gap-2 text-xs font-medium">
-        {/* User Pill */}
-        <div className="pointer-events-auto backdrop-blur-md bg-[#FBF7F0]/85 border border-[#2D241E]/10 rounded-full px-3 py-1.5 shadow-sm flex items-center gap-1.5 text-[#2D241E]">
+        {/* User Pill (Clickable -> Opens Settings & Reset Modal) */}
+        <button
+          type="button"
+          onClick={handleOpenSettings}
+          className="pointer-events-auto cursor-pointer backdrop-blur-md bg-[#FBF7F0]/85 hover:bg-white active:scale-95 transition-all border border-[#2D241E]/10 rounded-full px-3 py-1.5 shadow-sm flex items-center gap-1.5 text-[#2D241E]"
+          title="Florist Profile & Settings"
+        >
           <span className="text-sm">🐼</span>
           <span className="font-semibold truncate max-w-[120px]">
             {tgUser.firstName}
@@ -57,7 +95,7 @@ export const TopHud: React.FC<TopHudProps> = ({
           {tgUser.isTelegram && (
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           )}
-        </div>
+        </button>
 
         {/* Traveling Merchant Badge (Visible when a merchant is in town) */}
         {merchantVisit && (
@@ -78,7 +116,6 @@ export const TopHud: React.FC<TopHudProps> = ({
             </span>
           </button>
         )}
-
 
         {/* Clickable Weather Toggle Badge */}
         <button
@@ -164,6 +201,102 @@ export const TopHud: React.FC<TopHudProps> = ({
           <span className="font-bold tracking-tight">{reputation}</span>
         </button>
       </div>
+
+      {/* Settings / Reset Confirmation Modal (z-50) */}
+      {isSettingsOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in pointer-events-auto"
+        >
+          {/* Backdrop dismissal */}
+          <div
+            className="fixed inset-0"
+            onClick={handleCloseSettings}
+          />
+
+          <div className="relative z-10 w-full max-w-sm bg-[#FBF7F0] border border-[#2D241E]/15 rounded-3xl p-5 shadow-2xl text-[#2D241E] animate-scale-up">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#2D241E]/10">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🐼</span>
+                <div>
+                  <h3 className="font-bold text-sm text-[#2D241E]">
+                    Florist Profile & Settings
+                  </h3>
+                  <p className="text-[11px] text-[#2D241E]/60">
+                    {tgUser.firstName} {tgUser.username ? `(@${tgUser.username})` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseSettings}
+                className="w-7 h-7 rounded-full bg-[#2D241E]/5 hover:bg-[#2D241E]/10 flex items-center justify-center text-[#2D241E]/70 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Profile quick stats */}
+            <div className="grid grid-cols-2 gap-2 my-4 text-xs">
+              <div className="p-2.5 bg-white/80 rounded-xl border border-[#2D241E]/10 flex flex-col">
+                <span className="text-[10px] text-[#2D241E]/60 uppercase font-semibold">Coins</span>
+                <span className="font-extrabold text-amber-800 text-sm">🪙 {coins}</span>
+              </div>
+              <div className="p-2.5 bg-white/80 rounded-xl border border-[#2D241E]/10 flex flex-col">
+                <span className="text-[10px] text-[#2D241E]/60 uppercase font-semibold">Reputation</span>
+                <span className="font-extrabold text-rose-700 text-sm">⭐ {reputation}</span>
+              </div>
+            </div>
+
+            {/* Reset Progress Section */}
+            {!isConfirmingReset ? (
+              <div className="pt-2 border-t border-[#2D241E]/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic('warning');
+                    setIsConfirmingReset(true);
+                  }}
+                  className="w-full py-2.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Garden Progress</span>
+                </button>
+                <p className="text-[10px] text-center text-[#2D241E]/50 mt-1.5">
+                  Clear saved plots, coins, and orders back to starter defaults
+                </p>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-[#2D241E]/10 flex flex-col gap-2.5 bg-rose-50/70 p-3 rounded-2xl border border-rose-200">
+                <div className="flex items-start gap-2 text-rose-900 text-xs">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <p className="text-[11px] leading-tight">
+                    Are you sure? This will delete all saved progress and reset your garden to the beginning.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmingReset(false)}
+                    className="py-2 px-3 bg-white border border-[#2D241E]/15 rounded-xl text-xs font-semibold hover:bg-gray-50 text-[#2D241E] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmReset}
+                    className="py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer"
+                  >
+                    Yes, Reset
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 };

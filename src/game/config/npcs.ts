@@ -41,7 +41,7 @@ export const NPCS: Record<AnimalNpcId, AnimalNpcDefinition> = {
     displayName: 'Barnaby the Bear',
     species: 'Honey Grizzly',
     quote: 'Grrr... flowers that smell sweet as honey make my winter cave cozy.',
-    preferredTags: ['yellow', 'radiant', 'summer', 'tall', 'rustic'],
+    preferredTags: ['yellow', 'rustic', 'cheerful', 'radiant', 'summer', 'tall'],
     coinMultiplier: 1.4,
     reputationReward: 4,
     palette: {
@@ -57,7 +57,7 @@ export const NPCS: Record<AnimalNpcId, AnimalNpcDefinition> = {
     displayName: 'Felix the Fox',
     species: 'Crimson Fox',
     quote: 'A sly gentleman always brings the most elegant and passionate bouquet in town.',
-    preferredTags: ['romantic', 'red', 'elegant', 'fragrant', 'rare'],
+    preferredTags: ['classic', 'sweet', 'rustic', 'romantic', 'red', 'elegant'],
     coinMultiplier: 1.5,
     reputationReward: 5,
     palette: {

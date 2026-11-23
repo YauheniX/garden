@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { FLOWERS } from '../config/flowers';
+import { generateOrder } from '../engine/orders';
 import { useGameStore } from './useGameStore';
 
 describe('useGameStore', () => {
@@ -343,6 +344,62 @@ describe('useGameStore', () => {
       expect(fulfillRes.success).toBe(false);
       expect(fulfillRes.reason).toContain('sweet');
       expect(useGameStore.getState().harvestedFlowers).toHaveLength(3);
+    });
+
+    it('fulfills a newly generated starter order using matching starter flowers from harvestedFlowers', () => {
+      // Generate a fresh starter order
+      const newOrder = generateOrder([]);
+      expect(newOrder.type).toBe('tag_constraint');
+      expect(newOrder.requiredTag).toBeDefined();
+
+      useGameStore.setState({
+        activeOrders: [newOrder],
+        // Populate harvested inventory with 5 of each starter flower
+        harvestedFlowers: [
+          ...Array.from({ length: 5 }, (_, i) => ({
+            id: `daisy_${i}`,
+            flowerId: 'daisy' as const,
+            quality: 'normal' as const,
+            harvestedAt: Date.now(),
+          })),
+          ...Array.from({ length: 5 }, (_, i) => ({
+            id: `tulip_${i}`,
+            flowerId: 'tulip' as const,
+            quality: 'normal' as const,
+            harvestedAt: Date.now(),
+          })),
+          ...Array.from({ length: 5 }, (_, i) => ({
+            id: `lavender_${i}`,
+            flowerId: 'lavender' as const,
+            quality: 'normal' as const,
+            harvestedAt: Date.now(),
+          })),
+        ],
+      });
+
+      const { harvestedFlowers } = useGameStore.getState();
+      // Find flowers that carry the required tag
+      const matchingFlowerIds = harvestedFlowers
+        .filter((f) => FLOWERS[f.flowerId].tags.includes(newOrder.requiredTag!))
+        .map((f) => f.id);
+
+      expect(matchingFlowerIds.length).toBeGreaterThanOrEqual(newOrder.requiredTagCount!);
+
+      // Select enough matching flowers to satisfy the tag requirement, then fill up to flowerCount
+      const selectedIds = matchingFlowerIds.slice(0, newOrder.requiredTagCount);
+      const nonMatchingFlowerIds = harvestedFlowers
+        .filter((f) => !selectedIds.includes(f.id))
+        .map((f) => f.id);
+
+      while (selectedIds.length < newOrder.flowerCount) {
+        selectedIds.push(nonMatchingFlowerIds.shift()!);
+      }
+
+      const fulfillRes = useGameStore.getState().fulfillOrder(newOrder.id, selectedIds);
+      expect(fulfillRes.success).toBe(true);
+      expect(fulfillRes.reward).toBeDefined();
+      expect(fulfillRes.reward?.coins).toBeGreaterThan(0);
+      expect(fulfillRes.reward?.reputation).toBeGreaterThan(0);
     });
   });
 

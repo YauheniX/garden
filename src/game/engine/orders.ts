@@ -1,5 +1,10 @@
 import type { FlowerQuality } from '../config/balance';
-import { getFlower, type FlowerId } from '../config/flowers';
+import {
+  FLOWER_IDS,
+  STARTER_FLOWER_IDS,
+  getFlower,
+  type FlowerId,
+} from '../config/flowers';
 import { NPC_LIST, type AnimalNpcId } from '../config/npcs';
 import { SECRET_RECIPES } from '../config/recipes';
 import { buildRecipeKey, type BouquetCraftResult } from './crafting';
@@ -31,9 +36,52 @@ export interface OrderRewardResult {
   reputation: number;
 }
 
+export interface OrderChecklist {
+  canDeliver: boolean;
+  flowerCountOk: boolean;
+  currentFlowerCount: number;
+  requiredFlowerCount: number;
+  tagRequirementOk: boolean;
+  currentTagCount: number;
+  requiredTagCount: number;
+  tag?: string;
+  matchingFlowerNames: string[];
+  recipeRequirementOk: boolean;
+  requiredRecipeName?: string;
+  reason?: string;
+}
+
+/**
+ * Returns the set of all flower tags currently available to the player based
+ * on starter flowers and any flowers included in unlocked secret recipes.
+ */
+export function getAvailableFlowerTags(unlockedRecipes: string[] = []): Set<string> {
+  const flowerIds = new Set<FlowerId>(STARTER_FLOWER_IDS);
+  for (const recipeKey of unlockedRecipes) {
+    const recipe = SECRET_RECIPES[recipeKey];
+    if (recipe) {
+      for (const flowerId of recipe.flowers) {
+        flowerIds.add(flowerId);
+      }
+    }
+  }
+
+  const tags = new Set<string>();
+  for (const flowerId of flowerIds) {
+    const flower = getFlower(flowerId);
+    if (flower) {
+      for (const tag of flower.tags) {
+        tags.add(tag);
+      }
+    }
+  }
+  return tags;
+}
+
 /**
  * Generates an NPC customer order with either tag-based constraints
  * or a specific secret recipe requested from unlocked recipes.
+ * Only picks tags that exist on starter or currently available flowers.
  */
 export function generateOrder(
   unlockedRecipes: string[] = [],
@@ -67,8 +115,12 @@ export function generateOrder(
     };
   }
 
-  // Tag-based constraint order
-  const tagPool = npc.preferredTags;
+  // Tag-based constraint order: filter tags to ensure they exist on available flowers
+  const availableTags = getAvailableFlowerTags(unlockedRecipes);
+  let tagPool = npc.preferredTags.filter((tag) => availableTags.has(tag));
+  if (tagPool.length === 0) {
+    tagPool = Array.from(availableTags);
+  }
   const pickedTag = tagPool[Math.floor(rng() * tagPool.length)];
 
   // Choose bouquet flower count: 3 (50%), 4 (30%), 5 (20%)
@@ -94,6 +146,103 @@ export function generateOrder(
 }
 
 /**
+ * Computes a detailed checklist breakdown for an order given the player's selected flowers.
+ */
+export function getOrderChecklist(
+  order: NpcOrder,
+  selectedFlowers: Array<{ id: FlowerId; quality?: FlowerQuality }>
+): OrderChecklist {
+  const currentFlowerCount = selectedFlowers.length;
+  const requiredFlowerCount = order.flowerCount;
+  const flowerCountOk = currentFlowerCount === requiredFlowerCount;
+
+  if (order.type === 'recipe') {
+    const requiredRecipeName = order.recipeName ?? order.requiredRecipeKey ?? 'Unknown Recipe';
+    const currentRecipeKey = buildRecipeKey(selectedFlowers.map((f) => f.id));
+    const recipeRequirementOk =
+      Boolean(order.requiredRecipeKey) && currentRecipeKey === order.requiredRecipeKey;
+
+    let reason: string | undefined;
+    if (!flowerCountOk) {
+      if (currentFlowerCount < requiredFlowerCount) {
+        const diff = requiredFlowerCount - currentFlowerCount;
+        reason = `Select ${diff} more flower${diff === 1 ? '' : 's'} to match "${requiredRecipeName}" (${currentFlowerCount}/${requiredFlowerCount}).`;
+      } else {
+        reason = `Too many flowers for this recipe (selected ${currentFlowerCount}, requires exactly ${requiredFlowerCount}).`;
+      }
+    } else if (!recipeRequirementOk) {
+      reason = `Selected flowers do not match recipe "${requiredRecipeName}".`;
+    }
+
+    return {
+      canDeliver: flowerCountOk && recipeRequirementOk,
+      flowerCountOk,
+      currentFlowerCount,
+      requiredFlowerCount,
+      tagRequirementOk: true,
+      currentTagCount: 0,
+      requiredTagCount: 0,
+      recipeRequirementOk,
+      requiredRecipeName,
+      matchingFlowerNames: [],
+      reason,
+    };
+  }
+
+  // Tag constraint order
+  const tag = order.requiredTag ?? '';
+  const requiredTagCount = order.requiredTagCount ?? 0;
+
+  // Find all game flowers that carry this tag (for player hints)
+  const matchingFlowerNames: string[] = [];
+  for (const flowerId of FLOWER_IDS) {
+    const flower = getFlower(flowerId);
+    if (flower.tags.includes(tag)) {
+      matchingFlowerNames.push(flower.name);
+    }
+  }
+
+  let currentTagCount = 0;
+  for (const f of selectedFlowers) {
+    const flowerDef = getFlower(f.id);
+    if (flowerDef.tags.includes(tag)) {
+      currentTagCount++;
+    }
+  }
+
+  const tagRequirementOk = currentTagCount >= requiredTagCount;
+  const canDeliver = flowerCountOk && tagRequirementOk;
+
+  let reason: string | undefined;
+  if (!flowerCountOk) {
+    if (currentFlowerCount < requiredFlowerCount) {
+      const diff = requiredFlowerCount - currentFlowerCount;
+      reason = `Select ${diff} more flower${diff === 1 ? '' : 's'} for this order (${currentFlowerCount}/${requiredFlowerCount}).`;
+    } else {
+      reason = `Too many flowers (selected ${currentFlowerCount}, requires exactly ${requiredFlowerCount}).`;
+    }
+  } else if (!tagRequirementOk) {
+    const diff = requiredTagCount - currentTagCount;
+    const hint = matchingFlowerNames.length > 0 ? ` (found on: ${matchingFlowerNames.join(', ')})` : '';
+    reason = `Needs ${diff} more "${tag}" blossom${diff === 1 ? '' : 's'}${hint}.`;
+  }
+
+  return {
+    canDeliver,
+    flowerCountOk,
+    currentFlowerCount,
+    requiredFlowerCount,
+    tagRequirementOk,
+    currentTagCount,
+    requiredTagCount,
+    tag,
+    matchingFlowerNames,
+    recipeRequirementOk: true,
+    reason,
+  };
+}
+
+/**
  * Validates whether the selected flowers satisfy an NPC customer's order.
  */
 export function validateOrderFulfillment(
@@ -107,53 +256,15 @@ export function validateOrderFulfillment(
     };
   }
 
-  if (selectedFlowers.length !== order.flowerCount) {
-    return {
-      valid: false,
-      reason: `This order requires exactly ${order.flowerCount} flowers (provided ${selectedFlowers.length}).`,
-    };
-  }
-
-  if (order.type === 'recipe') {
-    if (!order.requiredRecipeKey) {
-      return { valid: false, reason: 'Invalid recipe order definition.' };
-    }
-
-    const recipeKey = buildRecipeKey(selectedFlowers.map((f) => f.id));
-    if (recipeKey !== order.requiredRecipeKey) {
-      return {
-        valid: false,
-        reason: `Does not match the requested recipe "${order.recipeName ?? order.requiredRecipeKey}".`,
-      };
-    }
-
+  const checklist = getOrderChecklist(order, selectedFlowers);
+  if (checklist.canDeliver) {
     return { valid: true };
   }
 
-  if (order.type === 'tag_constraint') {
-    if (!order.requiredTag || !order.requiredTagCount) {
-      return { valid: true };
-    }
-
-    let matchingCount = 0;
-    for (const flower of selectedFlowers) {
-      const def = getFlower(flower.id);
-      if (def.tags.includes(order.requiredTag)) {
-        matchingCount++;
-      }
-    }
-
-    if (matchingCount < order.requiredTagCount) {
-      return {
-        valid: false,
-        reason: `Needs at least ${order.requiredTagCount} "${order.requiredTag}" flowers (found ${matchingCount}).`,
-      };
-    }
-
-    return { valid: true };
-  }
-
-  return { valid: false, reason: 'Unknown order type.' };
+  return {
+    valid: false,
+    reason: checklist.reason ?? 'Order requirements not met.',
+  };
 }
 
 /**

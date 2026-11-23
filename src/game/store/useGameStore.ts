@@ -38,6 +38,7 @@ import { getPlotGrowthState, rollHarvestQuality } from '../engine/growth';
 import {
   calculateOrderReward,
   generateOrder,
+  getAvailableFlowerTags,
   validateOrderFulfillment,
   type NpcOrder,
   type OrderRewardResult,
@@ -841,6 +842,18 @@ export const useGameStore = create<GameStore>()(
             generateOrder(state.unlockedRecipes ?? []),
             generateOrder(state.unlockedRecipes ?? []),
           ];
+        } else if (state && state.activeOrders) {
+          const availableTags = getAvailableFlowerTags(state.unlockedRecipes ?? []);
+          state.activeOrders = state.activeOrders.map((order) => {
+            if (
+              order.type === 'tag_constraint' &&
+              order.requiredTag &&
+              !availableTags.has(order.requiredTag)
+            ) {
+              return generateOrder(state.unlockedRecipes ?? []);
+            }
+            return order;
+          });
         }
         if (state && !state.nextMerchantAt) {
           state.nextMerchantAt = Date.now() + 60 * 1000;

@@ -22,6 +22,7 @@ import {
 } from '../../game/engine/crafting';
 import {
   calculateOrderReward,
+  getOrderChecklist,
   validateOrderFulfillment,
 } from '../../game/engine/orders';
 import { useGameStore } from '../../game/store/useGameStore';
@@ -109,25 +110,24 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
     .map((id) => harvestedFlowers.find((f) => f.id === id))
     .filter((f): f is NonNullable<typeof f> => Boolean(f));
 
+  const flowerInputs = selectedFlowers.map((f) => ({
+    id: f.flowerId,
+    quality: f.quality,
+  }));
+
   // Compute live bouquet craft result if valid count (3..5)
   const canCraft = isValidBouquetCount(selectedFlowers.length);
   const bouquetPreview = canCraft
-    ? calculateBouquetPrice(
-        selectedFlowers.map((f) => ({ id: f.flowerId, quality: f.quality }))
-      )
+    ? calculateBouquetPrice(flowerInputs)
     : null;
 
-  // Compute order validation if an order is targeted
-  const orderValidation =
-    targetedOrder && canCraft
-      ? validateOrderFulfillment(
-          targetedOrder,
-          selectedFlowers.map((f) => ({ id: f.flowerId, quality: f.quality }))
-        )
-      : null;
+  // Compute order checklist & validation if an order is targeted
+  const orderChecklist = targetedOrder
+    ? getOrderChecklist(targetedOrder, flowerInputs)
+    : null;
 
   const orderReward =
-    targetedOrder && bouquetPreview && orderValidation?.valid
+    targetedOrder && bouquetPreview && orderChecklist?.canDeliver
       ? calculateOrderReward(targetedOrder, bouquetPreview)
       : null;
 
@@ -436,6 +436,90 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
               </div>
             )}
 
+            {/* Live Requirements Checklist Card when an Order is Targeted */}
+            {targetedOrder && orderChecklist && (
+              <div className="p-3 bg-white/90 border border-amber-200/80 rounded-2xl flex flex-col gap-2 shadow-sm animate-fade-in">
+                <div className="flex items-center justify-between text-xs font-bold text-[#2D241E]">
+                  <span className="flex items-center gap-1.5">
+                    <span>📋</span>
+                    <span>Order Requirements</span>
+                  </span>
+                  <span
+                    className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
+                      orderChecklist.canDeliver
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {orderChecklist.canDeliver ? 'Ready to Deliver 🎉' : 'In Progress ⏳'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {/* Requirement 1: Flower Count */}
+                  <div
+                    className={`p-2 rounded-xl border flex items-center justify-between transition-colors ${
+                      orderChecklist.flowerCountOk
+                        ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 font-semibold'
+                        : 'bg-[#2D241E]/5 border-[#2D241E]/10 text-[#2D241E]/80'
+                    }`}
+                  >
+                    <span className="truncate">🌸 Flowers</span>
+                    <span className="font-bold shrink-0 ml-1">
+                      {orderChecklist.currentFlowerCount} / {orderChecklist.requiredFlowerCount}
+                      {orderChecklist.flowerCountOk ? ' ✅' : ' ⏳'}
+                    </span>
+                  </div>
+
+                  {/* Requirement 2: Tag Constraint or Secret Recipe */}
+                  {targetedOrder.type === 'tag_constraint' ? (
+                    <div
+                      className={`p-2 rounded-xl border flex items-center justify-between transition-colors ${
+                        orderChecklist.tagRequirementOk
+                          ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 font-semibold'
+                          : 'bg-[#2D241E]/5 border-[#2D241E]/10 text-[#2D241E]/80'
+                      }`}
+                    >
+                      <span className="truncate" title={`"${orderChecklist.tag}" flowers`}>
+                        🏷️ &quot;{orderChecklist.tag}&quot;
+                      </span>
+                      <span className="font-bold shrink-0 ml-1">
+                        {orderChecklist.currentTagCount} / {orderChecklist.requiredTagCount}
+                        {orderChecklist.tagRequirementOk ? ' ✅' : ' ⏳'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      className={`p-2 rounded-xl border flex items-center justify-between transition-colors ${
+                        orderChecklist.recipeRequirementOk
+                          ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 font-semibold'
+                          : 'bg-[#2D241E]/5 border-[#2D241E]/10 text-[#2D241E]/80'
+                      }`}
+                    >
+                      <span className="truncate" title={orderChecklist.requiredRecipeName}>
+                        📜 Recipe
+                      </span>
+                      <span className="font-bold shrink-0 ml-1">
+                        {orderChecklist.recipeRequirementOk ? 'Match ✅' : 'Recipe ⏳'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Helpful blossom hint for tag constraint */}
+                {targetedOrder.type === 'tag_constraint' &&
+                  !orderChecklist.tagRequirementOk &&
+                  orderChecklist.matchingFlowerNames.length > 0 && (
+                    <p className="text-[11px] text-[#2D241E]/70 bg-amber-50/60 p-2 rounded-xl border border-amber-200/50 leading-relaxed">
+                      💡 Tip: <strong>&quot;{orderChecklist.tag}&quot;</strong> blossom found on{' '}
+                      <span className="font-semibold text-amber-950">
+                        {orderChecklist.matchingFlowerNames.join(', ')}
+                      </span>.
+                    </p>
+                  )}
+              </div>
+            )}
+
             {/* Selected Flowers Tray (3 to 5 Slots) */}
             <div className="p-3 bg-white/80 border border-[#2D241E]/10 rounded-2xl flex flex-col gap-2 shadow-sm">
               <div className="flex items-center justify-between text-xs font-bold text-[#2D241E]">
@@ -518,14 +602,14 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                   {/* Order fulfillment status */}
                   {targetedOrder && (
                     <div className="text-[11px] font-semibold mt-0.5">
-                      {orderValidation?.valid ? (
+                      {orderChecklist?.canDeliver ? (
                         <span className="text-emerald-700 flex items-center gap-1">
                           <Check className="w-3.5 h-3.5" /> Fulfills customer order!
                         </span>
                       ) : (
                         <span className="text-rose-600 flex items-center gap-1">
                           <AlertCircle className="w-3.5 h-3.5" />{' '}
-                          {orderValidation?.reason}
+                          {orderChecklist?.reason}
                         </span>
                       )}
                     </div>
@@ -552,31 +636,42 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-1 gap-2">
-                <button
-                  type="button"
-                  disabled={selectedHarvestIds.length === 0}
-                  onClick={handleClearSelection}
-                  className="px-3 py-2 text-xs font-bold text-[#2D241E]/60 hover:text-[#2D241E] disabled:opacity-30 cursor-pointer"
-                >
-                  Clear
-                </button>
+              {/* Action Buttons Section */}
+              <div className="flex flex-col gap-2 pt-1">
+                {/* Disabled reason notice when order cannot be delivered */}
+                {targetedOrder && orderChecklist && !orderChecklist.canDeliver && (
+                  <div className="p-2.5 bg-amber-50/90 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="font-medium text-[11px] leading-tight">
+                      <strong>Deliver disabled:</strong> {orderChecklist.reason}
+                    </span>
+                  </div>
+                )}
 
-                {targetedOrder ? (
+                <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    disabled={!canCraft || !orderValidation?.valid}
-                    onClick={() => handleFulfillActiveOrder(targetedOrder)}
-                    className="flex-1 py-2.5 px-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled={selectedHarvestIds.length === 0}
+                    onClick={handleClearSelection}
+                    className="px-3 py-2 text-xs font-bold text-[#2D241E]/60 hover:text-[#2D241E] disabled:opacity-30 cursor-pointer"
                   >
-                    <Check className="w-4 h-4" />
-                    <span>
-                      Deliver to {getNpc(targetedOrder.npcId).displayName.split(' ')[0]} (+{orderReward?.coins ?? bouquetPreview?.finalPrice ?? 0} Coins)
-                    </span>
+                    Clear
                   </button>
-                ) : (
-                  <div className="flex-1 flex gap-2">
+
+                  {targetedOrder ? (
+                    <button
+                      type="button"
+                      disabled={!orderChecklist?.canDeliver}
+                      onClick={() => handleFulfillActiveOrder(targetedOrder)}
+                      className="flex-1 py-2.5 px-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>
+                        Deliver to {getNpc(targetedOrder.npcId).displayName.split(' ')[0]} (+{orderReward?.coins ?? bouquetPreview?.finalPrice ?? 0} Coins)
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="flex-1 flex gap-2">
                     <button
                       type="button"
                       disabled={!canCraft}
@@ -600,8 +695,9 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Inventory Basket Picker Grid */}
+          {/* Inventory Basket Picker Grid */}
             <div className="flex flex-col gap-2">
               <span className="text-xs font-bold text-[#2D241E]/75 tracking-wider uppercase">
                 Harvested Basket ({harvestedFlowers.length} Available):

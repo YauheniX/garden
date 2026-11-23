@@ -98,6 +98,8 @@ export const FLOWER_IDS: FlowerId[] = [
   'orchid',
 ];
 
+export const STARTER_FLOWER_IDS: FlowerId[] = ['daisy', 'tulip', 'lavender'];
+
 export const FLOWER_LIST: FlowerDefinition[] = FLOWER_IDS.map(
   (id) => FLOWERS[id]
 );
