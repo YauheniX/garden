@@ -82,16 +82,32 @@ export function getAvailableFlowerTags(unlockedRecipes: string[] = []): Set<stri
  * Generates an NPC customer order with either tag-based constraints
  * or a specific secret recipe requested from unlocked recipes.
  * Only picks tags that exist on starter or currently available flowers.
+ * Prevents duplicate recipe requests by excluding any recipe key already
+ * occupied by waiting orders in the queue.
  */
 export function generateOrder(
   unlockedRecipes: string[] = [],
-  rng: () => number = Math.random
+  rng: () => number = Math.random,
+  existingOrdersOrRecipeKeys: Array<NpcOrder | string> = []
 ): NpcOrder {
   const npcIndex = Math.floor(rng() * NPC_LIST.length);
   const npc = NPC_LIST[npcIndex];
 
+  // Extract any recipe keys currently requested by existing active orders
+  const occupiedRecipeKeys = new Set<string>();
+  for (const item of existingOrdersOrRecipeKeys) {
+    if (typeof item === 'string') {
+      occupiedRecipeKeys.add(item);
+    } else if (item && typeof item === 'object' && item.requiredRecipeKey) {
+      occupiedRecipeKeys.add(item.requiredRecipeKey);
+    }
+  }
+
   // 40% chance to request an unlocked secret recipe if the player knows at least one
-  const validUnlocked = unlockedRecipes.filter((key) => Boolean(SECRET_RECIPES[key]));
+  // Only select from unlocked recipes that are NOT already requested by another active order!
+  const validUnlocked = unlockedRecipes.filter(
+    (key) => Boolean(SECRET_RECIPES[key]) && !occupiedRecipeKeys.has(key)
+  );
   const wantsRecipe = validUnlocked.length > 0 && rng() < 0.4;
 
   const id = `order_${Date.now()}_${Math.floor(rng() * 10000)}`;

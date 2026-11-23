@@ -401,6 +401,57 @@ describe('useGameStore', () => {
       expect(fulfillRes.reward?.coins).toBeGreaterThan(0);
       expect(fulfillRes.reward?.reputation).toBeGreaterThan(0);
     });
+
+    it('does not generate duplicate recipe orders when replenishing after order fulfillment', () => {
+      const recipeKey = 'daisy+daisy+tulip';
+      const existingRecipeOrder = {
+        id: 'recipe_order_1',
+        npcId: 'rabbit' as const,
+        type: 'recipe' as const,
+        flowerCount: 3,
+        requiredRecipeKey: recipeKey,
+        recipeName: 'Spring Awakening',
+        rewardCoinsMultiplier: 1.5,
+        rewardReputation: 5,
+        dialogue: 'Spring Awakening please!',
+        createdAt: Date.now(),
+      };
+
+      const tagOrderToFulfill = {
+        id: 'tag_order_2',
+        npcId: 'bear' as const,
+        type: 'tag_constraint' as const,
+        flowerCount: 3,
+        requiredTag: 'yellow',
+        requiredTagCount: 2,
+        rewardCoinsMultiplier: 1.25,
+        rewardReputation: 3,
+        dialogue: 'Yellow flowers please!',
+        createdAt: Date.now(),
+      };
+
+      useGameStore.setState({
+        unlockedRecipes: [recipeKey],
+        activeOrders: [existingRecipeOrder, tagOrderToFulfill],
+        harvestedFlowers: [
+          { id: 'f1', flowerId: 'daisy', quality: 'normal', harvestedAt: Date.now() },
+          { id: 'f2', flowerId: 'daisy', quality: 'normal', harvestedAt: Date.now() },
+          { id: 'f3', flowerId: 'tulip', quality: 'normal', harvestedAt: Date.now() },
+        ],
+      });
+
+      const fulfillRes = useGameStore.getState().fulfillOrder('tag_order_2', ['f1', 'f2', 'f3']);
+      expect(fulfillRes.success).toBe(true);
+
+      const state = useGameStore.getState();
+      expect(state.activeOrders).toHaveLength(2);
+      // Ensure there is only 1 order with recipeKey
+      const recipeOrders = state.activeOrders.filter(
+        (o) => o.type === 'recipe' && o.requiredRecipeKey === recipeKey
+      );
+      expect(recipeOrders).toHaveLength(1);
+      expect(recipeOrders[0].id).toBe('recipe_order_1');
+    });
   });
 
   describe('economy & plot unlocking', () => {

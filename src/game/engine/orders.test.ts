@@ -102,6 +102,37 @@ describe('orders engine', () => {
       expect(order.flowerCount).toBe(3);
       expect(order.dialogue).toContain('Spring Awakening');
     });
+
+    it('prevents duplicate recipe orders when existing orders already requested the recipe', () => {
+      const unlockedKey = 'daisy+daisy+tulip';
+      // Force recipe selection (wantsRecipe < 0.4)
+      const fakeRng = () => 0.1;
+
+      // First order requests the recipe
+      const order1 = generateOrder([unlockedKey], fakeRng, []);
+      expect(order1.type).toBe('recipe');
+      expect(order1.requiredRecipeKey).toBe(unlockedKey);
+
+      // Second order given order1 as existing order must NOT request the same recipe
+      const order2 = generateOrder([unlockedKey], fakeRng, [order1]);
+      expect(order2.type).toBe('tag_constraint');
+      expect(order2.requiredRecipeKey).toBeUndefined();
+
+      // Given a list of recipe key strings directly
+      const order3 = generateOrder([unlockedKey], fakeRng, [unlockedKey]);
+      expect(order3.type).toBe('tag_constraint');
+    });
+
+    it('picks another unlocked recipe if the first is already occupied', () => {
+      const key1 = 'daisy+daisy+tulip';
+      const key2 = 'daisy+lavender+tulip';
+      const fakeRng = () => 0.1; // wantsRecipe < 0.4
+
+      // key1 is occupied, key2 is free
+      const order = generateOrder([key1, key2], fakeRng, [key1]);
+      expect(order.type).toBe('recipe');
+      expect(order.requiredRecipeKey).toBe(key2);
+    });
   });
 
   describe('getOrderChecklist', () => {

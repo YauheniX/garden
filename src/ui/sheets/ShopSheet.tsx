@@ -12,10 +12,10 @@ import {
   Star,
   X,
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { getFlower, type FlowerId } from '../../game/config/flowers';
 import { getNpc } from '../../game/config/npcs';
-import { SECRET_RECIPES_LIST } from '../../game/config/recipes';
+import { SECRET_RECIPES, SECRET_RECIPES_LIST } from '../../game/config/recipes';
 import {
   calculateBouquetPrice,
   isValidBouquetCount,
@@ -66,6 +66,25 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
     type: 'success' | 'error';
   } | null>(null);
 
+  const sheetContainerRef = useRef<HTMLDivElement>(null);
+
+  const [prevInitialOrderId, setPrevInitialOrderId] = useState<string | null>(initialOrderId);
+  const [prevInitialTab, setPrevInitialTab] = useState<'orders' | 'bench' | 'recipes'>(initialTab);
+
+  if (initialOrderId !== prevInitialOrderId) {
+    setPrevInitialOrderId(initialOrderId);
+    if (initialOrderId) {
+      setTargetedOrderId(initialOrderId);
+    }
+  }
+
+  if (initialTab !== prevInitialTab) {
+    setPrevInitialTab(initialTab);
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }
+
   if (!isOpen) return null;
 
   const targetedOrder = targetedOrderId
@@ -75,6 +94,9 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
   const handleSwitchTab = (tab: 'orders' | 'bench' | 'recipes') => {
     setActiveTab(tab);
     setFeedbackMsg(null);
+    if (sheetContainerRef.current) {
+      sheetContainerRef.current.scrollTop = 0;
+    }
   };
 
   const handleStartCraftForOrder = (orderId: string) => {
@@ -83,6 +105,9 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
     setSelectedHarvestIds([]);
     setFeedbackMsg(null);
     haptic('light');
+    if (sheetContainerRef.current) {
+      sheetContainerRef.current.scrollTop = 0;
+    }
   };
 
   const handleToggleFlowerSelect = (id: string) => {
@@ -130,6 +155,31 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
     targetedOrder && bouquetPreview && orderChecklist?.canDeliver
       ? calculateOrderReward(targetedOrder, bouquetPreview)
       : null;
+
+  // If targeted order is a recipe order, extract required recipe ingredients and live satisfaction state
+  const targetedRecipeDef =
+    targetedOrder && targetedOrder.type === 'recipe' && targetedOrder.requiredRecipeKey
+      ? SECRET_RECIPES[targetedOrder.requiredRecipeKey] ?? null
+      : null;
+
+  const recipeIngredients = targetedRecipeDef
+    ? Object.entries(
+        targetedRecipeDef.flowers.reduce<Record<FlowerId, number>>((acc, fid) => {
+          acc[fid] = (acc[fid] ?? 0) + 1;
+          return acc;
+        }, {} as Record<FlowerId, number>)
+      ).map(([id, reqCount]) => {
+        const flowerId = id as FlowerId;
+        const currentCount = selectedFlowers.filter((f) => f.flowerId === flowerId).length;
+        return {
+          id: flowerId,
+          name: getFlower(flowerId).name,
+          reqCount,
+          currentCount,
+          satisfied: currentCount >= reqCount,
+        };
+      })
+    : [];
 
   const handleFulfillActiveOrder = (orderToFulfill = targetedOrder) => {
     if (!orderToFulfill) return;
@@ -207,7 +257,10 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
       />
 
       {/* Warm Cream Bottom Sheet */}
-      <div className="relative z-10 bg-[#FBF7F0] border-t border-[#2D241E]/15 rounded-t-[28px] shadow-2xl p-5 max-w-md mx-auto w-full max-h-[88vh] overflow-y-auto animate-slide-up text-[#2D241E]">
+      <div
+        ref={sheetContainerRef}
+        className="relative z-10 bg-[#FBF7F0] border-t border-[#2D241E]/15 rounded-t-[28px] shadow-2xl p-5 max-w-md mx-auto w-full max-h-[88vh] overflow-y-auto animate-slide-up text-[#2D241E]"
+      >
         {/* Top Drag Handle */}
         <div className="w-10 h-1 bg-[#2D241E]/20 rounded-full mx-auto mb-3" />
 
@@ -371,7 +424,11 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => handleStartCraftForOrder(order.id)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleStartCraftForOrder(order.id);
+                        }}
                         className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
                       >
                         <span>Craft for {npc.displayName.split(' ')[0]}</span>
@@ -392,34 +449,69 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
           <div className="flex flex-col gap-3 mt-4">
             {/* Targeted Order Header Banner (if an order is selected) */}
             {targetedOrder ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">
-                    {targetedOrder.npcId === 'rabbit' && '🐰'}
-                    {targetedOrder.npcId === 'bear' && '🐻'}
-                    {targetedOrder.npcId === 'fox' && '🦊'}
-                    {targetedOrder.npcId === 'capybara' && '🥔'}
-                    {targetedOrder.npcId === 'hedgehog' && '🦔'}
-                  </span>
-                  <div>
-                    <h4 className="font-bold text-xs text-[#2D241E]">
-                      Crafting for {getNpc(targetedOrder.npcId).displayName}
-                    </h4>
-                    <span className="text-[11px] text-amber-900 font-medium block">
-                      {targetedOrder.type === 'recipe'
-                        ? `Needs "${targetedOrder.recipeName}"`
-                        : `${targetedOrder.flowerCount} flowers (≥${targetedOrder.requiredTagCount} "${targetedOrder.requiredTag}")`}
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col gap-2 shadow-sm animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">
+                      {targetedOrder.npcId === 'rabbit' && '🐰'}
+                      {targetedOrder.npcId === 'bear' && '🐻'}
+                      {targetedOrder.npcId === 'fox' && '🦊'}
+                      {targetedOrder.npcId === 'capybara' && '🥔'}
+                      {targetedOrder.npcId === 'hedgehog' && '🦔'}
                     </span>
+                    <div>
+                      <h4 className="font-bold text-xs text-[#2D241E]">
+                        Crafting for {getNpc(targetedOrder.npcId).displayName}
+                      </h4>
+                      <span className="text-[11px] text-amber-900 font-medium block">
+                        {targetedOrder.type === 'recipe'
+                          ? `Secret Recipe: "${targetedOrder.recipeName}"`
+                          : `${targetedOrder.flowerCount} flowers (≥${targetedOrder.requiredTagCount} "${targetedOrder.requiredTag}")`}
+                      </span>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setTargetedOrderId(null)}
+                    className="text-[11px] text-[#2D241E]/60 hover:text-[#2D241E] p-1 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
+                    title="Deselect customer to craft free bouquet"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setTargetedOrderId(null)}
-                  className="text-[11px] text-[#2D241E]/60 hover:text-[#2D241E] p-1 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
-                  title="Deselect customer to craft free bouquet"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+
+                {/* Secret Recipe Ingredients directly inside order banner with live checkmarks */}
+                {targetedOrder.type === 'recipe' && recipeIngredients.length > 0 && (
+                  <div className="pt-2 border-t border-amber-200/60 flex flex-col gap-1.5">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-amber-900/70">
+                      Required Recipe Ingredients:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {recipeIngredients.map((ing) => (
+                        <div
+                          key={`banner-recipe-ing-${ing.id}`}
+                          className={`px-2 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 transition-all shadow-xs ${
+                            ing.satisfied
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : 'bg-white/90 text-[#2D241E]/85 border-amber-200'
+                          }`}
+                        >
+                          <span className="text-xs">{ing.satisfied ? '✅' : '⏳'}</span>
+                          <span>
+                            {ing.reqCount}× {ing.name}
+                          </span>
+                          <span
+                            className={`text-[10px] font-semibold ${
+                              ing.satisfied ? 'text-emerald-700' : 'text-[#2D241E]/55'
+                            }`}
+                          >
+                            ({ing.currentCount}/{ing.reqCount})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-2.5 bg-white/70 border border-[#2D241E]/10 rounded-2xl flex items-center justify-between text-xs">
@@ -490,18 +582,39 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                     </div>
                   ) : (
                     <div
-                      className={`p-2 rounded-xl border flex items-center justify-between transition-colors ${
+                      className={`p-2 rounded-xl border flex flex-col justify-between transition-colors ${
                         orderChecklist.recipeRequirementOk
                           ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 font-semibold'
                           : 'bg-[#2D241E]/5 border-[#2D241E]/10 text-[#2D241E]/80'
                       }`}
                     >
-                      <span className="truncate" title={orderChecklist.requiredRecipeName}>
-                        📜 Recipe
-                      </span>
-                      <span className="font-bold shrink-0 ml-1">
-                        {orderChecklist.recipeRequirementOk ? 'Match ✅' : 'Recipe ⏳'}
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="truncate font-semibold" title={orderChecklist.requiredRecipeName}>
+                          📜 Recipe Match
+                        </span>
+                        <span className="font-bold shrink-0 ml-1">
+                          {orderChecklist.recipeRequirementOk ? 'Match ✅' : 'Recipe ⏳'}
+                        </span>
+                      </div>
+                      {recipeIngredients.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {recipeIngredients.map((ing) => (
+                            <span
+                              key={`checklist-recipe-ing-${ing.id}`}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 ${
+                                ing.satisfied
+                                  ? 'bg-emerald-100 text-emerald-900'
+                                  : 'bg-white/80 text-[#2D241E]/75 border border-[#2D241E]/10'
+                              }`}
+                            >
+                              <span>{ing.satisfied ? '✅' : '⏳'}</span>
+                              <span>
+                                {ing.reqCount}× {ing.name} ({ing.currentCount}/{ing.reqCount})
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

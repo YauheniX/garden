@@ -487,8 +487,8 @@ export const useGameStore = create<GameStore>()(
             : state.unlockedRecipes;
 
         // Remove completed order and append a fresh new customer order
-        const newOrder = generateOrder(newUnlockedRecipes);
         const remainingOrders = state.activeOrders.filter((o) => o.id !== orderId);
+        const newOrder = generateOrder(newUnlockedRecipes, Math.random, remainingOrders);
         const updatedOrders = [...remainingOrders, newOrder].slice(0, 3);
 
         set({
@@ -837,20 +837,31 @@ export const useGameStore = create<GameStore>()(
       name: 'panda-florist-save-v1',
       onRehydrateStorage: () => (state) => {
         if (state && (!state.activeOrders || state.activeOrders.length === 0)) {
-          state.activeOrders = [
-            generateOrder(state.unlockedRecipes ?? []),
-            generateOrder(state.unlockedRecipes ?? []),
-            generateOrder(state.unlockedRecipes ?? []),
-          ];
+          const o1 = generateOrder(state.unlockedRecipes ?? []);
+          const o2 = generateOrder(state.unlockedRecipes ?? [], Math.random, [o1]);
+          const o3 = generateOrder(state.unlockedRecipes ?? [], Math.random, [o1, o2]);
+          state.activeOrders = [o1, o2, o3];
         } else if (state && state.activeOrders) {
           const availableTags = getAvailableFlowerTags(state.unlockedRecipes ?? []);
-          state.activeOrders = state.activeOrders.map((order) => {
-            if (
+          const seenRecipeKeys = new Set<string>();
+          state.activeOrders = state.activeOrders.map((order, idx, arr) => {
+            const isInvalidTag =
               order.type === 'tag_constraint' &&
               order.requiredTag &&
-              !availableTags.has(order.requiredTag)
-            ) {
-              return generateOrder(state.unlockedRecipes ?? []);
+              !availableTags.has(order.requiredTag);
+
+            const isDuplicateRecipe =
+              order.type === 'recipe' &&
+              order.requiredRecipeKey &&
+              seenRecipeKeys.has(order.requiredRecipeKey);
+
+            if (isInvalidTag || isDuplicateRecipe) {
+              const otherOrders = arr.filter((_, i) => i !== idx);
+              return generateOrder(state.unlockedRecipes ?? [], Math.random, otherOrders);
+            }
+
+            if (order.type === 'recipe' && order.requiredRecipeKey) {
+              seenRecipeKeys.add(order.requiredRecipeKey);
             }
             return order;
           });
