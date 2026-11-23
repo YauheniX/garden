@@ -15,14 +15,12 @@ import { getTelegramUser, haptic } from '../../telegram/tma';
 interface TopHudProps {
   onOpenResources?: (tab: 'water' | 'fertilizer') => void;
   onOpenMerchant?: () => void;
-  onOpenDecor?: () => void;
   onOpenLeaderboard?: () => void;
 }
 
 export const TopHud: React.FC<TopHudProps> = ({
   onOpenResources,
   onOpenMerchant,
-  onOpenDecor,
   onOpenLeaderboard,
 }) => {
   const coins = useGameStore((s) => s.coins);
@@ -81,19 +79,6 @@ export const TopHud: React.FC<TopHudProps> = ({
           </button>
         )}
 
-        {/* Garden Decor Shop Button */}
-        <button
-          type="button"
-          onClick={() => {
-            haptic('light');
-            onOpenDecor?.();
-          }}
-          className="pointer-events-auto cursor-pointer backdrop-blur-md bg-[#FBF7F0]/85 active:scale-95 transition-transform border border-[#2D241E]/10 rounded-full px-2.5 py-1.5 shadow-sm flex items-center gap-1 text-[#2D241E] hover:bg-white"
-          title="Open Garden Decor Shop"
-        >
-          <span>🏮</span>
-          <span className="font-semibold">Decor</span>
-        </button>
 
         {/* Clickable Weather Toggle Badge */}
         <button

@@ -1,6 +1,7 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { NpcOrder } from '../game/engine/orders';
 import { useGameStore } from '../game/store/useGameStore';
 import { AnimalNPC } from './AnimalNPC';
 import { BambooShop } from './BambooShop';
@@ -32,14 +33,105 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
   const merchantVisit = useGameStore((s) => s.merchantVisit);
   const weather = useGameStore((s) => s.weather);
 
+  // Maintain local queue state to support walk-in and leaving walk-out animations
+  interface QueuedCustomer {
+    order: NpcOrder;
+    slotIndex: number;
+    isLeaving: boolean;
+    spawnTime: number;
+  }
+
+  const [prevOrders, setPrevOrders] = useState(activeOrders);
+  const [customerQueue, setCustomerQueue] = useState<QueuedCustomer[]>(() => {
+    const initial = (activeOrders ?? []).slice(0, 3);
+    return initial.map((order, slotIndex) => ({
+      order,
+      slotIndex,
+      isLeaving: false,
+      spawnTime: 0, // Initial load: already waiting at counter
+    }));
+  });
+
+  // Track customer order arrivals and completions during render (official React pattern)
+  if (activeOrders !== prevOrders) {
+    setPrevOrders(activeOrders);
+    const top3 = (activeOrders ?? []).slice(0, 3);
+    const activeMap = new Map(top3.map((o, idx) => [o.id, { order: o, idx }]));
+    const next: QueuedCustomer[] = [];
+
+    // 1. Process existing customers in queue
+    for (const item of customerQueue) {
+      if (activeMap.has(item.order.id)) {
+        // Still active: update slotIndex if line advanced
+        const { idx } = activeMap.get(item.order.id)!;
+        next.push({ ...item, slotIndex: idx, isLeaving: false });
+        activeMap.delete(item.order.id);
+      } else if (!item.isLeaving) {
+        // Newly fulfilled / removed: transition to leaving
+        next.push({ ...item, isLeaving: true });
+      } else {
+        // Already leaving: keep until exit complete
+        next.push(item);
+      }
+    }
+
+    // 2. Add newly arrived orders (walking in from entrance)
+    for (const [, { order, idx }] of activeMap) {
+      next.push({
+        order,
+        slotIndex: idx,
+        isLeaving: false,
+        spawnTime: 1, // Newly arrived order
+      });
+    }
+
+    setCustomerQueue(next);
+  }
+
+  const handleExitComplete = useCallback((orderId: string) => {
+    setCustomerQueue((prev) => prev.filter((item) => item.order.id !== orderId));
+  }, []);
+
+  // Safety cleanup in case an exit event was missed
+  useEffect(() => {
+    const hasLeaving = customerQueue.some((c) => c.isLeaving);
+    if (!hasLeaving) return;
+    const timer = setTimeout(() => {
+      setCustomerQueue((prev) => prev.filter((item) => !item.isLeaving));
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [customerQueue]);
+
   const bgColor = useMemo(() => {
     switch (weather) {
       case 'sunny':
-        return '#F5EFE6';
+        return '#F5E6D3';
       case 'rainy':
         return '#DCE5EB';
       case 'foggy':
         return '#E2E6E3';
+    }
+  }, [weather]);
+
+  const hemiSky = useMemo(() => {
+    switch (weather) {
+      case 'sunny':
+        return '#FFF8E7';
+      case 'rainy':
+        return '#D0E4F0';
+      case 'foggy':
+        return '#E8ECE8';
+    }
+  }, [weather]);
+
+  const hemiGround = useMemo(() => {
+    switch (weather) {
+      case 'sunny':
+        return '#6B8E4E';
+      case 'rainy':
+        return '#4A6242';
+      case 'foggy':
+        return '#5A7252';
     }
   }, [weather]);
 
@@ -48,30 +140,32 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
       <Canvas
         shadows
         dpr={[1, 2]}
-        camera={{ position: [0, 7.5, 7.2], fov: 42 }}
+        camera={{ position: [0, 6.2, 7.8], fov: 42 }}
         onPointerMissed={() => onSelectPlot(null)}
       >
         <color attach="background" args={[bgColor]} />
+        <fog attach="fog" args={[bgColor, 16, 36]} />
 
-        {/* Ambient & Hemisphere lighting for soft low-poly ambient light */}
-        <ambientLight intensity={0.55} />
-        <hemisphereLight args={['#FFF5EB', '#7A6B5D', 0.85]} />
+        {/* Ambient & Warm-Cool Hemisphere lighting for soft low-poly shadows */}
+        <ambientLight intensity={0.5} />
+        <hemisphereLight args={[hemiSky, hemiGround, 0.85]} />
 
-        {/* Warm sunlight casting crisp 1024x1024 soft directional shadows */}
+        {/* Warm golden-hour sunlight casting soft directional shadows */}
         <directionalLight
-          position={[6, 12, 5]}
-          intensity={weather === 'rainy' ? 1.0 : weather === 'foggy' ? 1.2 : 1.6}
-          color={weather === 'rainy' ? '#E0EEF8' : '#FFF6E5'}
+          position={[7, 13, 6]}
+          intensity={weather === 'rainy' ? 1.1 : weather === 'foggy' ? 1.3 : 1.8}
+          color={weather === 'rainy' ? '#E0EEF8' : '#FFF2D6'}
           castShadow
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
           shadow-camera-near={1}
-          shadow-camera-far={26}
-          shadow-camera-left={-7}
-          shadow-camera-right={7}
-          shadow-camera-top={7}
-          shadow-camera-bottom={-7}
-          shadow-bias={-0.0008}
+          shadow-camera-far={28}
+          shadow-camera-left={-8}
+          shadow-camera-right={8}
+          shadow-camera-top={8}
+          shadow-camera-bottom={-8}
+          shadow-bias={-0.0005}
+          shadow-radius={3}
         />
 
         {/* Orbit Controls with smooth damping & constrained polar viewing angles */}
@@ -79,11 +173,11 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
           makeDefault
           enableDamping
           dampingFactor={0.06}
-          maxPolarAngle={Math.PI / 2.25}
-          minPolarAngle={Math.PI / 6}
+          maxPolarAngle={Math.PI / 2.2}
+          minPolarAngle={Math.PI / 4}
           minDistance={4.2}
           maxDistance={14}
-          target={[0, 0.4, -0.6]}
+          target={[0, 0.3, -0.4]}
         />
 
         {/* 1. Low-poly wooden tabletop and surrounding scenery */}
@@ -92,13 +186,15 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
         {/* 2. Low-poly Flower Stall & Cute Panda Florist */}
         <BambooShop onSelectShop={onSelectShop} />
 
-        {/* 2b. Queued Animal NPC Customers */}
+        {/* 2b. Queued Animal NPC Customers (with walk-in and walk-out animations) */}
         <group name="animal-customers">
-          {(activeOrders ?? []).slice(0, 3).map((order, idx) => (
+          {customerQueue.map((item) => (
             <AnimalNPC
-              key={order.id}
-              order={order}
-              index={idx}
+              key={item.order.id}
+              order={item.order}
+              index={item.slotIndex}
+              isLeaving={item.isLeaving}
+              spawnTime={item.spawnTime}
               onSelectNpc={(orderId) => {
                 if (onSelectOrder) {
                   onSelectOrder(orderId);
@@ -106,6 +202,7 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
                   onSelectShop();
                 }
               }}
+              onExitComplete={handleExitComplete}
             />
           ))}
         </group>

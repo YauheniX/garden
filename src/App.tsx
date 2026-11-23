@@ -76,7 +76,6 @@ export const App: React.FC = () => {
       <TopHud
         onOpenResources={handleOpenResources}
         onOpenMerchant={() => setMerchantOpen(true)}
-        onOpenDecor={() => setDecorOpen(true)}
         onOpenLeaderboard={() => setLeaderboardOpen(true)}
       />
 
