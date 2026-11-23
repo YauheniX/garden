@@ -2,6 +2,7 @@ import { OrbitControls } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import React, { useMemo } from 'react';
 import { useGameStore } from '../game/store/useGameStore';
+import { AnimalNPC } from './AnimalNPC';
 import { BambooShop } from './BambooShop';
 import { GardenPlot } from './GardenPlot';
 import { TabletopDiorama } from './TabletopDiorama';
@@ -11,14 +12,17 @@ interface GardenSceneProps {
   selectedPlotId: string | null;
   onSelectPlot: (plotId: string | null) => void;
   onSelectShop: () => void;
+  onSelectOrder?: (orderId: string) => void;
 }
 
 export const GardenScene: React.FC<GardenSceneProps> = ({
   selectedPlotId,
   onSelectPlot,
   onSelectShop,
+  onSelectOrder,
 }) => {
   const plots = useGameStore((s) => s.plots);
+  const activeOrders = useGameStore((s) => s.activeOrders);
   const weather = useGameStore((s) => s.weather);
 
   const bgColor = useMemo(() => {
@@ -80,6 +84,24 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
 
         {/* 2. Low-poly Flower Stall & Cute Panda Florist */}
         <BambooShop onSelectShop={onSelectShop} />
+
+        {/* 2b. Queued Animal NPC Customers */}
+        <group name="animal-customers">
+          {(activeOrders ?? []).slice(0, 3).map((order, idx) => (
+            <AnimalNPC
+              key={order.id}
+              order={order}
+              index={idx}
+              onSelectNpc={(orderId) => {
+                if (onSelectOrder) {
+                  onSelectOrder(orderId);
+                } else {
+                  onSelectShop();
+                }
+              }}
+            />
+          ))}
+        </group>
 
         {/* 3. The 9 Raised Garden Plots */}
         <group name="plots-grid">

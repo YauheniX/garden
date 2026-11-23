@@ -19,6 +19,13 @@ import {
   type BouquetCraftResult,
 } from '../engine/crafting';
 import { getPlotGrowthState, rollHarvestQuality } from '../engine/growth';
+import {
+  calculateOrderReward,
+  generateOrder,
+  validateOrderFulfillment,
+  type NpcOrder,
+  type OrderRewardResult,
+} from '../engine/orders';
 import { haptic } from '../../telegram/tma';
 
 export interface GardenPlotState {
@@ -42,6 +49,13 @@ export interface MinigameCooldowns {
   compostReadyAt: number;
 }
 
+export interface FulfillOrderResult {
+  success: boolean;
+  reward?: OrderRewardResult;
+  bouquet?: BouquetCraftResult;
+  reason?: string;
+}
+
 export interface GameState {
   coins: number;
   water: number;
@@ -53,6 +67,7 @@ export interface GameState {
   seeds: Record<FlowerId, number>;
   harvestedFlowers: HarvestedFlower[];
   unlockedRecipes: string[];
+  activeOrders: NpcOrder[];
   minigameCooldowns: MinigameCooldowns;
 }
 
@@ -62,6 +77,8 @@ export interface GameActions {
   fertilizePlot: (plotId: string) => boolean;
   harvestPlot: (plotId: string, now?: number) => HarvestedFlower | null;
   craftBouquet: (harvestedIds: string[]) => BouquetCraftResult | null;
+  sellFreeBouquet: (harvestedIds: string[]) => BouquetCraftResult | null;
+  fulfillOrder: (orderId: string, harvestedIds: string[]) => FulfillOrderResult;
   buySeed: (flowerId: FlowerId, qty?: number) => boolean;
   buyWater: (qty?: number) => boolean;
   buyFertilizer: (qty?: number) => boolean;
@@ -109,6 +126,11 @@ export function createInitialState(): GameState {
     seeds: seedsRecord,
     harvestedFlowers: [],
     unlockedRecipes: [],
+    activeOrders: [
+      generateOrder([]),
+      generateOrder([]),
+      generateOrder([]),
+    ],
     minigameCooldowns: {
       wellReadyAt: 0,
       compostReadyAt: 0,
@@ -315,6 +337,87 @@ export const useGameStore = create<GameStore>()(
         return result;
       },
 
+      sellFreeBouquet: (harvestedIds) => {
+        return get().craftBouquet(harvestedIds);
+      },
+
+      fulfillOrder: (orderId, harvestedIds) => {
+        const state = get();
+        const order = state.activeOrders.find((o) => o.id === orderId);
+
+        if (!order) {
+          return { success: false, reason: 'Order not found or already fulfilled.' };
+        }
+
+        if (!isValidBouquetCount(harvestedIds.length)) {
+          return {
+            success: false,
+            reason: 'Bouquet must contain between 3 and 5 flowers.',
+          };
+        }
+
+        // Verify flowers are in inventory
+        const selectedFlowers: HarvestedFlower[] = [];
+        const remainingInventory = [...state.harvestedFlowers];
+
+        for (const id of harvestedIds) {
+          const index = remainingInventory.findIndex((f) => f.id === id);
+          if (index === -1) {
+            return {
+              success: false,
+              reason: 'Selected flower is no longer in inventory.',
+            };
+          }
+          selectedFlowers.push(remainingInventory[index]);
+          remainingInventory.splice(index, 1);
+        }
+
+        // Validate fulfillment criteria
+        const flowerInputs = selectedFlowers.map((f) => ({
+          id: f.flowerId,
+          quality: f.quality,
+        }));
+
+        const validation = validateOrderFulfillment(order, flowerInputs);
+        if (!validation.valid) {
+          return { success: false, reason: validation.reason };
+        }
+
+        // Craft the bouquet
+        const bouquetResult = calculateBouquetPrice(flowerInputs);
+
+        // Calculate rewards
+        const reward = calculateOrderReward(order, bouquetResult);
+
+        // Update unlocked recipes if secret recipe was used
+        const newUnlockedRecipes =
+          bouquetResult.isSecretRecipe &&
+          !state.unlockedRecipes.includes(bouquetResult.recipeKey)
+            ? [...state.unlockedRecipes, bouquetResult.recipeKey]
+            : state.unlockedRecipes;
+
+        // Replace completed order with a new customer order
+        const newOrder = generateOrder(newUnlockedRecipes);
+        const updatedOrders = state.activeOrders.map((o) =>
+          o.id === orderId ? newOrder : o
+        );
+
+        set({
+          harvestedFlowers: remainingInventory,
+          coins: state.coins + reward.coins,
+          reputation: state.reputation + reward.reputation,
+          unlockedRecipes: newUnlockedRecipes,
+          activeOrders: updatedOrders,
+        });
+
+        haptic(bouquetResult.isSecretRecipe ? 'heavy' : 'success');
+        return {
+          success: true,
+          reward,
+          bouquet: bouquetResult,
+        };
+      },
+
       buySeed: (flowerId, qty = 1) => {
         if (qty <= 0) return false;
         const state = get();
@@ -429,6 +532,15 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'panda-florist-save-v1',
+      onRehydrateStorage: () => (state) => {
+        if (state && (!state.activeOrders || state.activeOrders.length === 0)) {
+          state.activeOrders = [
+            generateOrder(state.unlockedRecipes ?? []),
+            generateOrder(state.unlockedRecipes ?? []),
+            generateOrder(state.unlockedRecipes ?? []),
+          ];
+        }
+      },
       storage: createJSONStorage(() => {
         if (typeof window !== 'undefined' && window.localStorage) {
           return window.localStorage;

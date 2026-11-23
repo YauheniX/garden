@@ -255,6 +255,95 @@ describe('useGameStore', () => {
       expect(craftResult?.bouquetName).toBe('Custom Bouquet');
       expect(useGameStore.getState().harvestedFlowers).toHaveLength(0);
     });
+
+    it('sells free bouquet using sellFreeBouquet', () => {
+      useGameStore.setState({
+        harvestedFlowers: [
+          { id: 'f1', flowerId: 'daisy', quality: 'normal', harvestedAt: Date.now() },
+          { id: 'f2', flowerId: 'tulip', quality: 'normal', harvestedAt: Date.now() },
+          { id: 'f3', flowerId: 'lavender', quality: 'normal', harvestedAt: Date.now() },
+        ],
+      });
+
+      const initialCoins = useGameStore.getState().coins;
+      const result = useGameStore.getState().sellFreeBouquet(['f1', 'f2', 'f3']);
+
+      expect(result).not.toBeNull();
+      expect(useGameStore.getState().coins).toBeGreaterThan(initialCoins);
+      expect(useGameStore.getState().harvestedFlowers).toHaveLength(0);
+    });
+
+    it('fulfills an active NPC order and replaces it with a new one', () => {
+      // Setup a specific active order
+      const targetOrder = {
+        id: 'test_order_1',
+        npcId: 'rabbit' as const,
+        type: 'tag_constraint' as const,
+        flowerCount: 3,
+        requiredTag: 'sweet',
+        requiredTagCount: 2,
+        rewardCoinsMultiplier: 1.25,
+        rewardReputation: 3,
+        dialogue: 'Give me sweet flowers!',
+        createdAt: Date.now(),
+      };
+
+      useGameStore.setState({
+        activeOrders: [targetOrder],
+        harvestedFlowers: [
+          { id: 'f1', flowerId: 'tulip', quality: 'normal', harvestedAt: Date.now() }, // 'sweet'
+          { id: 'f2', flowerId: 'tulip', quality: 'normal', harvestedAt: Date.now() }, // 'sweet'
+          { id: 'f3', flowerId: 'daisy', quality: 'normal', harvestedAt: Date.now() },
+        ],
+      });
+
+      const initialCoins = useGameStore.getState().coins;
+      const initialRep = useGameStore.getState().reputation;
+
+      const fulfillRes = useGameStore.getState().fulfillOrder('test_order_1', ['f1', 'f2', 'f3']);
+
+      expect(fulfillRes.success).toBe(true);
+      expect(fulfillRes.reward).toBeDefined();
+      expect(fulfillRes.reward?.coins).toBeGreaterThan(0);
+
+      const state = useGameStore.getState();
+      expect(state.coins).toBe(initialCoins + (fulfillRes.reward?.coins ?? 0));
+      expect(state.reputation).toBe(initialRep + (fulfillRes.reward?.reputation ?? 0));
+      expect(state.harvestedFlowers).toHaveLength(0);
+
+      // Replaced with a new order!
+      expect(state.activeOrders).toHaveLength(1);
+      expect(state.activeOrders[0].id).not.toBe('test_order_1');
+    });
+
+    it('rejects order fulfillment if requirements are not met', () => {
+      const targetOrder = {
+        id: 'test_order_2',
+        npcId: 'rabbit' as const,
+        type: 'tag_constraint' as const,
+        flowerCount: 3,
+        requiredTag: 'sweet',
+        requiredTagCount: 2,
+        rewardCoinsMultiplier: 1.25,
+        rewardReputation: 3,
+        dialogue: 'Give me sweet flowers!',
+        createdAt: Date.now(),
+      };
+
+      useGameStore.setState({
+        activeOrders: [targetOrder],
+        harvestedFlowers: [
+          { id: 'f1', flowerId: 'daisy', quality: 'normal', harvestedAt: Date.now() },
+          { id: 'f2', flowerId: 'daisy', quality: 'normal', harvestedAt: Date.now() },
+          { id: 'f3', flowerId: 'daisy', quality: 'normal', harvestedAt: Date.now() },
+        ],
+      });
+
+      const fulfillRes = useGameStore.getState().fulfillOrder('test_order_2', ['f1', 'f2', 'f3']);
+      expect(fulfillRes.success).toBe(false);
+      expect(fulfillRes.reason).toContain('sweet');
+      expect(useGameStore.getState().harvestedFlowers).toHaveLength(3);
+    });
   });
 
   describe('economy & plot unlocking', () => {

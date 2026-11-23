@@ -1,0 +1,676 @@
+import {
+  AlertCircle,
+  ArrowRight,
+  BookOpen,
+  Check,
+  Coins,
+  Flower2,
+  Lock,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  X,
+} from 'lucide-react';
+import React, { useState } from 'react';
+import { getFlower, type FlowerId } from '../../game/config/flowers';
+import { getNpc } from '../../game/config/npcs';
+import { SECRET_RECIPES_LIST } from '../../game/config/recipes';
+import {
+  calculateBouquetPrice,
+  isValidBouquetCount,
+} from '../../game/engine/crafting';
+import {
+  calculateOrderReward,
+  validateOrderFulfillment,
+} from '../../game/engine/orders';
+import { useGameStore } from '../../game/store/useGameStore';
+import { haptic } from '../../telegram/tma';
+
+interface ShopSheetProps {
+  isOpen: boolean;
+  initialTab?: 'orders' | 'bench' | 'recipes';
+  initialOrderId?: string | null;
+  onClose: () => void;
+}
+
+const RECIPE_HINTS: Record<string, string> = {
+  'daisy+daisy+tulip': 'A fresh spring mix with 2 common white daisies and a pink tulip.',
+  'daisy+lavender+tulip': 'Soothing pastoral blend of 3 starter meadow flowers.',
+  'lavender+rose+rose': 'A romantic trio pairing relaxing lavender with 2 crimson roses.',
+  'daisy+lavender+sunflower+tulip': '4 twilight flowers crowned by a summer sunflower.',
+  'rose+sunflower+sunflower+tulip': 'A royal arrangement of 2 radiant sunflowers, rose, and tulip.',
+  'daisy+lavender+orchid+rose+sunflower':
+    'The legendary 5-blossom symphony crowned by the Moon Orchid.',
+};
+
+export const ShopSheet: React.FC<ShopSheetProps> = ({
+  isOpen,
+  initialTab = 'orders',
+  initialOrderId = null,
+  onClose,
+}) => {
+  const activeOrders = useGameStore((s) => s.activeOrders);
+  const harvestedFlowers = useGameStore((s) => s.harvestedFlowers);
+  const unlockedRecipes = useGameStore((s) => s.unlockedRecipes);
+  const fulfillOrder = useGameStore((s) => s.fulfillOrder);
+  const sellFreeBouquet = useGameStore((s) => s.sellFreeBouquet);
+
+  const [activeTab, setActiveTab] = useState<'orders' | 'bench' | 'recipes'>(initialTab);
+  const [targetedOrderId, setTargetedOrderId] = useState<string | null>(initialOrderId);
+  const [selectedHarvestIds, setSelectedHarvestIds] = useState<string[]>([]);
+  const [feedbackMsg, setFeedbackMsg] = useState<{
+    text: string;
+    type: 'success' | 'error';
+  } | null>(null);
+
+  if (!isOpen) return null;
+
+  const targetedOrder = targetedOrderId
+    ? activeOrders.find((o) => o.id === targetedOrderId) ?? null
+    : null;
+
+  const handleSwitchTab = (tab: 'orders' | 'bench' | 'recipes') => {
+    setActiveTab(tab);
+    setFeedbackMsg(null);
+  };
+
+  const handleStartCraftForOrder = (orderId: string) => {
+    setTargetedOrderId(orderId);
+    setActiveTab('bench');
+    setSelectedHarvestIds([]);
+    setFeedbackMsg(null);
+    haptic('light');
+  };
+
+  const handleToggleFlowerSelect = (id: string) => {
+    setFeedbackMsg(null);
+    if (selectedHarvestIds.includes(id)) {
+      setSelectedHarvestIds((prev) => prev.filter((item) => item !== id));
+      haptic('light');
+    } else {
+      if (selectedHarvestIds.length >= 5) {
+        haptic('warning');
+        return;
+      }
+      setSelectedHarvestIds((prev) => [...prev, id]);
+      haptic('light');
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedHarvestIds([]);
+    setFeedbackMsg(null);
+  };
+
+  // Resolve selected flowers objects from inventory
+  const selectedFlowers = selectedHarvestIds
+    .map((id) => harvestedFlowers.find((f) => f.id === id))
+    .filter((f): f is NonNullable<typeof f> => Boolean(f));
+
+  // Compute live bouquet craft result if valid count (3..5)
+  const canCraft = isValidBouquetCount(selectedFlowers.length);
+  const bouquetPreview = canCraft
+    ? calculateBouquetPrice(
+        selectedFlowers.map((f) => ({ id: f.flowerId, quality: f.quality }))
+      )
+    : null;
+
+  // Compute order validation if an order is targeted
+  const orderValidation =
+    targetedOrder && canCraft
+      ? validateOrderFulfillment(
+          targetedOrder,
+          selectedFlowers.map((f) => ({ id: f.flowerId, quality: f.quality }))
+        )
+      : null;
+
+  const orderReward =
+    targetedOrder && bouquetPreview && orderValidation?.valid
+      ? calculateOrderReward(targetedOrder, bouquetPreview)
+      : null;
+
+  const handleFulfillActiveOrder = () => {
+    if (!targetedOrder) return;
+    const result = fulfillOrder(targetedOrder.id, selectedHarvestIds);
+    if (result.success && result.reward) {
+      setFeedbackMsg({
+        text: `🎉 Order Fulfilled! Earned +${result.reward.coins} Coins & +${result.reward.reputation} Rep!`,
+        type: 'success',
+      });
+      setSelectedHarvestIds([]);
+      setTargetedOrderId(null);
+    } else {
+      setFeedbackMsg({
+        text: result.reason ?? 'Could not fulfill order.',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleSellFreeBouquet = () => {
+    const result = sellFreeBouquet(selectedHarvestIds);
+    if (result) {
+      setFeedbackMsg({
+        text: `🌸 Sold "${result.bouquetName}" for +${result.finalPrice} Coins!`,
+        type: 'success',
+      });
+      setSelectedHarvestIds([]);
+    }
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-x-0 bottom-0 z-30 flex flex-col justify-end pointer-events-auto animate-fade-in"
+    >
+      {/* Semi-transparent backdrop to dismiss */}
+      <div
+        className="fixed inset-0 bg-black/35 backdrop-blur-[2px] transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Warm Cream Bottom Sheet */}
+      <div className="relative z-10 bg-[#FBF7F0] border-t border-[#2D241E]/15 rounded-t-[28px] shadow-2xl p-5 max-w-md mx-auto w-full max-h-[88vh] overflow-y-auto animate-slide-up text-[#2D241E]">
+        {/* Top Drag Handle */}
+        <div className="w-10 h-1 bg-[#2D241E]/20 rounded-full mx-auto mb-3" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-[#2D241E]/10">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🎋</span>
+            <div>
+              <h3 className="font-bold text-base text-[#2D241E] leading-tight">
+                Panda's Flower Stall
+              </h3>
+              <p className="text-xs text-[#2D241E]/65">
+                Animal customers, bouquet bench & secret recipes
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-[#2D241E]/5 hover:bg-[#2D241E]/10 flex items-center justify-center transition-colors text-[#2D241E]/70 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* 3 Tabs Switcher */}
+        <div className="grid grid-cols-3 gap-1.5 mt-3.5 p-1 bg-white/70 border border-[#2D241E]/10 rounded-2xl">
+          <button
+            type="button"
+            onClick={() => handleSwitchTab('orders')}
+            className={`py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'orders'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-[#2D241E]/70 hover:bg-[#2D241E]/5'
+            }`}
+          >
+            <ShoppingBag className="w-3.5 h-3.5" />
+            <span>Orders ({activeOrders.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSwitchTab('bench')}
+            className={`py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'bench'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-[#2D241E]/70 hover:bg-[#2D241E]/5'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Bench</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSwitchTab('recipes')}
+            className={`py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'recipes'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'text-[#2D241E]/70 hover:bg-[#2D241E]/5'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Recipes ({unlockedRecipes.length}/6)</span>
+          </button>
+        </div>
+
+        {/* Feedback Message Banner */}
+        {feedbackMsg && (
+          <div
+            className={`mt-3 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 border animate-fade-in ${
+              feedbackMsg.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : 'bg-rose-50 text-rose-800 border-rose-200'
+            }`}
+          >
+            {feedbackMsg.type === 'success' ? (
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{feedbackMsg.text}</span>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 1: ORDERS */}
+        {/* ========================================================= */}
+        {activeTab === 'orders' && (
+          <div className="flex flex-col gap-3 mt-4">
+            <p className="text-xs text-[#2D241E]/65">
+              Friendly diorama animals waiting for hand-crafted bouquets:
+            </p>
+
+            {activeOrders.length === 0 ? (
+              <div className="py-8 text-center text-xs text-[#2D241E]/60">
+                No active orders right now. Check back soon!
+              </div>
+            ) : (
+              activeOrders.map((order) => {
+                const npc = getNpc(order.npcId);
+                const isTargeted = targetedOrderId === order.id;
+
+                return (
+                  <div
+                    key={order.id}
+                    className={`p-3.5 bg-white/80 border rounded-2xl flex flex-col gap-2.5 shadow-sm transition-all ${
+                      isTargeted
+                        ? 'border-amber-500 ring-2 ring-amber-400/30'
+                        : 'border-[#2D241E]/10 hover:border-amber-500/40'
+                    }`}
+                  >
+                    {/* Animal header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">
+                          {order.npcId === 'rabbit' && '🐰'}
+                          {order.npcId === 'bear' && '🐻'}
+                          {order.npcId === 'fox' && '🦊'}
+                          {order.npcId === 'capybara' && '🥔'}
+                          {order.npcId === 'hedgehog' && '🦔'}
+                        </span>
+                        <div>
+                          <h4 className="font-bold text-sm text-[#2D241E]">
+                            {npc.displayName}
+                          </h4>
+                          <span className="text-[10px] text-[#2D241E]/55 uppercase tracking-wider font-semibold">
+                            {npc.species}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Reward pill */}
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg">
+                        <Coins className="w-3.5 h-3.5 text-amber-600" />
+                        <span>+{order.rewardCoinsMultiplier}x</span>
+                        <span>•</span>
+                        <Star className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+                        <span>+{order.rewardReputation}</span>
+                      </div>
+                    </div>
+
+                    {/* Animal Dialogue Quote */}
+                    <p className="text-xs italic text-[#2D241E]/75 bg-[#FBF7F0] p-2 rounded-xl border border-[#2D241E]/5">
+                      "{order.dialogue}"
+                    </p>
+
+                    {/* Order Requirements */}
+                    <div className="flex items-center justify-between text-xs font-medium pt-1 border-t border-[#2D241E]/5">
+                      <div className="flex items-center gap-1.5 text-xs text-[#2D241E]/80">
+                        {order.type === 'recipe' ? (
+                          <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 font-bold text-[11px]">
+                            📜 Recipe: {order.recipeName}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-semibold text-[11px]">
+                            🌸 {order.flowerCount} flowers (≥{order.requiredTagCount} "{order.requiredTag}")
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStartCraftForOrder(order.id)}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Craft for {npc.displayName.split(' ')[0]}</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 2: BOUQUET CRAFTING BENCH */}
+        {/* ========================================================= */}
+        {activeTab === 'bench' && (
+          <div className="flex flex-col gap-3 mt-4">
+            {/* Targeted Order Header Banner (if an order is selected) */}
+            {targetedOrder ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">
+                    {targetedOrder.npcId === 'rabbit' && '🐰'}
+                    {targetedOrder.npcId === 'bear' && '🐻'}
+                    {targetedOrder.npcId === 'fox' && '🦊'}
+                    {targetedOrder.npcId === 'capybara' && '🥔'}
+                    {targetedOrder.npcId === 'hedgehog' && '🦔'}
+                  </span>
+                  <div>
+                    <h4 className="font-bold text-xs text-[#2D241E]">
+                      Crafting for {getNpc(targetedOrder.npcId).displayName}
+                    </h4>
+                    <span className="text-[11px] text-amber-900 font-medium block">
+                      {targetedOrder.type === 'recipe'
+                        ? `Needs "${targetedOrder.recipeName}"`
+                        : `${targetedOrder.flowerCount} flowers (≥${targetedOrder.requiredTagCount} "${targetedOrder.requiredTag}")`}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTargetedOrderId(null)}
+                  className="text-[11px] text-[#2D241E]/60 hover:text-[#2D241E] p-1 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
+                  title="Deselect customer to craft free bouquet"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="p-2.5 bg-white/70 border border-[#2D241E]/10 rounded-2xl flex items-center justify-between text-xs">
+                <span className="text-[#2D241E]/70">
+                  Crafting Freeform Bouquet for instant sale
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('orders')}
+                  className="text-amber-800 font-bold hover:underline cursor-pointer"
+                >
+                  Pick Customer Order →
+                </button>
+              </div>
+            )}
+
+            {/* Selected Flowers Tray (3 to 5 Slots) */}
+            <div className="p-3 bg-white/80 border border-[#2D241E]/10 rounded-2xl flex flex-col gap-2 shadow-sm">
+              <div className="flex items-center justify-between text-xs font-bold text-[#2D241E]">
+                <span className="flex items-center gap-1.5">
+                  <Flower2 className="w-4 h-4 text-emerald-600" />
+                  <span>Bouquet Arrangement</span>
+                </span>
+                <span
+                  className={
+                    selectedFlowers.length >= 3
+                      ? 'text-emerald-700 font-extrabold'
+                      : 'text-amber-700'
+                  }
+                >
+                  {selectedFlowers.length} / 5 flowers
+                </span>
+              </div>
+
+              {/* 5 Slots */}
+              <div className="grid grid-cols-5 gap-1.5">
+                {[0, 1, 2, 3, 4].map((slotIdx) => {
+                  const flower = selectedFlowers[slotIdx];
+                  const def = flower ? getFlower(flower.flowerId) : null;
+
+                  return (
+                    <div
+                      key={`tray-slot-${slotIdx}`}
+                      className={`h-16 rounded-xl border flex flex-col items-center justify-center p-1 text-center transition-all ${
+                        flower
+                          ? 'bg-amber-50/70 border-amber-300 shadow-sm'
+                          : slotIdx < 3
+                          ? 'bg-[#2D241E]/5 border-dashed border-[#2D241E]/20 text-[#2D241E]/40'
+                          : 'bg-[#2D241E]/3 border-dashed border-[#2D241E]/15 text-[#2D241E]/30'
+                      }`}
+                    >
+                      {flower && def ? (
+                        <>
+                          <span className="text-base">🌸</span>
+                          <span className="text-[10px] font-bold text-[#2D241E] truncate max-w-full">
+                            {def.name}
+                          </span>
+                          <span
+                            className={`text-[8px] font-extrabold uppercase px-1 rounded ${
+                              flower.quality === 'shiny'
+                                ? 'bg-amber-200 text-amber-900'
+                                : flower.quality === 'rare'
+                                ? 'bg-purple-200 text-purple-900'
+                                : 'text-[#2D241E]/60'
+                            }`}
+                          >
+                            {flower.quality}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[10px] font-medium">
+                          {slotIdx < 3 ? 'Req' : 'Opt'}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Live Preview / Validation Banner */}
+              {bouquetPreview && (
+                <div className="mt-1 p-2.5 bg-gradient-to-r from-amber-50 to-emerald-50 border border-emerald-200 rounded-xl flex flex-col gap-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#2D241E]">
+                      {bouquetPreview.isSecretRecipe
+                        ? `✨ ${bouquetPreview.bouquetName}`
+                        : bouquetPreview.bouquetName}
+                    </span>
+                    <span className="font-extrabold text-amber-900">
+                      {orderReward
+                        ? `~${orderReward.coins} Coins (+${orderReward.reputation} Rep)`
+                        : `~${bouquetPreview.finalPrice} Coins`}
+                    </span>
+                  </div>
+
+                  {/* Order fulfillment status */}
+                  {targetedOrder && (
+                    <div className="text-[11px] font-semibold mt-0.5">
+                      {orderValidation?.valid ? (
+                        <span className="text-emerald-700 flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" /> Fulfills customer order!
+                        </span>
+                      ) : (
+                        <span className="text-rose-600 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5" />{' '}
+                          {orderValidation?.reason}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-1 gap-2">
+                <button
+                  type="button"
+                  disabled={selectedHarvestIds.length === 0}
+                  onClick={handleClearSelection}
+                  className="px-3 py-2 text-xs font-bold text-[#2D241E]/60 hover:text-[#2D241E] disabled:opacity-30 cursor-pointer"
+                >
+                  Clear
+                </button>
+
+                {targetedOrder ? (
+                  <button
+                    type="button"
+                    disabled={!canCraft || !orderValidation?.valid}
+                    onClick={handleFulfillActiveOrder}
+                    className="flex-1 py-2.5 px-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Fulfill for {getNpc(targetedOrder.npcId).displayName.split(' ')[0]}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!canCraft}
+                    onClick={handleSellFreeBouquet}
+                    className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Coins className="w-4 h-4" />
+                    <span>Sell Free Bouquet (~{bouquetPreview?.finalPrice ?? 0}c)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Inventory Basket Picker Grid */}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-bold text-[#2D241E]/75 tracking-wider uppercase">
+                Harvested Basket ({harvestedFlowers.length} Available):
+              </span>
+
+              {harvestedFlowers.length === 0 ? (
+                <div className="py-6 px-4 bg-white/50 border border-dashed border-[#2D241E]/15 rounded-2xl text-center text-xs text-[#2D241E]/60 flex flex-col items-center gap-1">
+                  <span>🧺 Your flower basket is empty!</span>
+                  <span>Harvest mature blossoms from your tabletop garden beds.</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-[35vh] overflow-y-auto pr-1">
+                  {harvestedFlowers.map((flower) => {
+                    const def = getFlower(flower.flowerId);
+                    const isSelected = selectedHarvestIds.includes(flower.id);
+
+                    return (
+                      <button
+                        key={flower.id}
+                        type="button"
+                        onClick={() => handleToggleFlowerSelect(flower.id)}
+                        className={`p-2.5 rounded-2xl border text-left flex flex-col justify-between gap-1.5 transition-all cursor-pointer shadow-sm ${
+                          isSelected
+                            ? 'bg-amber-100/90 border-amber-600 ring-2 ring-amber-500/40 scale-[0.98]'
+                            : 'bg-white/80 border-[#2D241E]/10 hover:border-emerald-600/40'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-[#2D241E]">
+                            {def.name}
+                          </span>
+                          <span
+                            className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold uppercase ${
+                              flower.quality === 'shiny'
+                                ? 'bg-amber-200 text-amber-900'
+                                : flower.quality === 'rare'
+                                ? 'bg-purple-200 text-purple-900'
+                                : 'bg-stone-100 text-stone-700'
+                            }`}
+                          >
+                            {flower.quality}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-[#2D241E]/65">
+                          <span className="truncate max-w-[90px]">
+                            {def.tags.slice(0, 2).join(', ')}
+                          </span>
+                          <span className="font-semibold text-amber-800">
+                            ~{def.baseSellPrice}c
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 3: RECIPE BOOK */}
+        {/* ========================================================= */}
+        {activeTab === 'recipes' && (
+          <div className="flex flex-col gap-3 mt-4">
+            <p className="text-xs text-[#2D241E]/65">
+              Secret bouquet recipes discovered through experimental florist crafting:
+            </p>
+
+            <div className="flex flex-col gap-2.5 max-h-[55vh] overflow-y-auto pr-1">
+              {SECRET_RECIPES_LIST.map((recipe) => {
+                const isUnlocked = unlockedRecipes.includes(recipe.key);
+
+                return (
+                  <div
+                    key={recipe.id}
+                    className={`p-3.5 rounded-2xl border flex flex-col gap-2 shadow-sm transition-all ${
+                      isUnlocked
+                        ? 'bg-white/85 border-purple-200 hover:border-purple-300'
+                        : 'bg-stone-100/70 border-stone-200 opacity-80'
+                    }`}
+                  >
+                    {/* Recipe Title & Multiplier Badge */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        {isUnlocked ? (
+                          <span className="text-lg">📜</span>
+                        ) : (
+                          <Lock className="w-4 h-4 text-stone-500" />
+                        )}
+                        <h4 className="font-bold text-sm text-[#2D241E]">
+                          {isUnlocked ? recipe.name : '??? Secret Recipe'}
+                        </h4>
+                      </div>
+
+                      <span className="text-xs font-extrabold px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
+                        {recipe.priceMultiplier}x Value
+                      </span>
+                    </div>
+
+                    {/* Flower Ingredients */}
+                    <div className="flex flex-wrap gap-1 text-xs">
+                      {isUnlocked ? (
+                        Object.entries(
+                          recipe.flowers.reduce<Record<string, number>>((acc, flId) => {
+                            acc[flId] = (acc[flId] ?? 0) + 1;
+                            return acc;
+                          }, {})
+                        ).map(([flId, count]) => (
+                          <span
+                            key={`recipe-fl-${recipe.id}-${flId}`}
+                            className="px-2 py-0.5 rounded-lg bg-[#FBF7F0] border border-[#2D241E]/10 font-medium text-[11px] text-[#2D241E]"
+                          >
+                            🌸 {count > 1 ? `${count}x ` : ''}
+                            {getFlower(flId as FlowerId).name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-[11px] text-[#2D241E]/60 italic">
+                          {RECIPE_HINTS[recipe.key] ??
+                            `Requires ${recipe.flowers.length} mysterious blossoms...`}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Description if unlocked */}
+                    {isUnlocked && (
+                      <p className="text-[11px] text-[#2D241E]/70 italic mt-0.5">
+                        "{recipe.description}"
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
