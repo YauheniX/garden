@@ -1,3 +1,4 @@
+import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import React, { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -191,12 +192,12 @@ export const AnimalNPC: React.FC<AnimalNPCProps> = ({
       headRef.current.rotation.y = Math.cos(t * 1.2 + index) * 0.05;
     }
 
-    // Speech bubble subtle floating bob and visibility
+    // Crisp floating order badge subtle floating bob and visibility
     if (bubbleRef.current) {
-      const showBubble = !isLeaving && progressRef.current >= 0.85;
-      bubbleRef.current.visible = showBubble;
-      if (showBubble) {
-        bubbleRef.current.position.y = 1.05 + Math.sin(t * 2.8 + index) * 0.035;
+      const showBadge = !isLeaving && progressRef.current >= 0.92;
+      bubbleRef.current.visible = showBadge;
+      if (showBadge) {
+        bubbleRef.current.position.y = 1.08 + Math.sin(t * 3.0 + index) * 0.035;
       }
     }
   });
@@ -441,49 +442,36 @@ export const AnimalNPC: React.FC<AnimalNPCProps> = ({
         </group>
       )}
 
-      {/* Floating Speech Bubble Indicator (Visibility managed in useFrame) */}
-      <group ref={bubbleRef} position={[0, 1.05, 0]} visible={!isLeaving && spawnTime === 0}>
-        {/* Soft rounded bubble body */}
-        <mesh position={[0, 0, 0]}>
-          <sphereGeometry args={[0.13, 8, 8]} />
-          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.92} />
-        </mesh>
-        {/* Speech tail pointer downward */}
-        <mesh position={[0, -0.11, 0]} rotation={[0, 0, Math.PI]}>
-          <coneGeometry args={[0.045, 0.08, 4]} />
-          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.92} />
-        </mesh>
-
-        {/* Inside icon hint: Secret Recipe Scroll or Bouquet Bloom */}
-        <mesh position={[0, 0, 0.06]}>
-          {order.type === 'recipe' ? (
-            <cylinderGeometry args={[0.04, 0.04, 0.1, 6]} />
-          ) : (
-            <dodecahedronGeometry args={[0.06, 0]} />
-          )}
-          <meshStandardMaterial
-            color={order.type === 'recipe' ? '#9333EA' : '#F59E0B'}
-            roughness={0.4}
-            flatShading
-          />
-        </mesh>
+      {/* Floating Pill Badge using Drei Html (Visible only when arrived at the stall counter) */}
+      <group ref={bubbleRef} position={[0, 1.08, 0]} visible={!isLeaving && spawnTime === 0}>
+        <Html
+          center
+          distanceFactor={8}
+          zIndexRange={[10, 0]}
+          className="pointer-events-none select-none"
+        >
+          <div className="flex items-center gap-1 bg-[#FBF7F0]/95 backdrop-blur-sm border border-[#2D241E]/15 rounded-full px-2 py-0.5 shadow-md text-xs font-bold text-[#2D241E] whitespace-nowrap">
+            <span className="text-xs">{order.type === 'recipe' ? '📜' : '🌸'}</span>
+            <span className="text-[10px] text-amber-950 font-extrabold uppercase tracking-wide">
+              {order.type === 'recipe' ? 'Recipe' : 'Order'}
+            </span>
+          </div>
+        </Html>
       </group>
 
-      {/* Cute Floating Heart Icon when leaving happily */}
+      {/* Cute Floating Heart Badge when leaving happily */}
       {isLeaving && (
         <group position={[0, 1.08, 0]}>
-          <mesh position={[-0.035, 0.03, 0]}>
-            <sphereGeometry args={[0.045, 6, 6]} />
-            <meshBasicMaterial color="#EC4899" />
-          </mesh>
-          <mesh position={[0.035, 0.03, 0]}>
-            <sphereGeometry args={[0.045, 6, 6]} />
-            <meshBasicMaterial color="#EC4899" />
-          </mesh>
-          <mesh position={[0, -0.02, 0]} rotation={[0, 0, Math.PI]}>
-            <coneGeometry args={[0.065, 0.08, 5]} />
-            <meshBasicMaterial color="#EC4899" />
-          </mesh>
+          <Html
+            center
+            distanceFactor={8}
+            zIndexRange={[10, 0]}
+            className="pointer-events-none select-none"
+          >
+            <div className="bg-[#FBF7F0]/95 backdrop-blur-sm border border-pink-300 rounded-full px-1.5 py-0.5 shadow-md text-xs animate-bounce">
+              💖
+            </div>
+          </Html>
         </group>
       )}
 

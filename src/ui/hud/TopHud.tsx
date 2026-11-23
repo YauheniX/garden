@@ -45,7 +45,7 @@ export const TopHud: React.FC<TopHudProps> = ({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-20 pointer-events-none p-3 max-w-lg mx-auto flex flex-col gap-2">
+    <header className="fixed top-0 left-0 right-0 z-30 pointer-events-none p-3 max-w-lg mx-auto flex flex-col gap-2">
       {/* Top Meta Bar: Player Greeting & Clickable Weather Switcher */}
       <div className="flex items-center justify-between gap-2 text-xs font-medium">
         {/* User Pill */}

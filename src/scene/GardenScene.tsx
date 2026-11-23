@@ -140,7 +140,7 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
       <Canvas
         shadows
         dpr={[1, 2]}
-        camera={{ position: [0, 6.2, 7.8], fov: 42 }}
+        camera={{ position: [0, 7.2, 8.6], fov: 40 }}
         onPointerMissed={() => onSelectPlot(null)}
       >
         <color attach="background" args={[bgColor]} />
@@ -175,9 +175,9 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
           dampingFactor={0.06}
           maxPolarAngle={Math.PI / 2.2}
           minPolarAngle={Math.PI / 4}
-          minDistance={4.2}
-          maxDistance={14}
-          target={[0, 0.3, -0.4]}
+          minDistance={4.5}
+          maxDistance={15}
+          target={[0, 0.5, -1.2]}
         />
 
         {/* 1. Low-poly wooden tabletop and surrounding scenery */}

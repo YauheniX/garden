@@ -48,28 +48,24 @@ export const TabletopDiorama: React.FC = () => {
     ];
   }, []);
 
-  // 3. Dedicated Sandstone Stepping Stones (Running along right walkway to stall, never clipping plots)
+  // 3. Flat Sandstone Stepping Stones (Curving to stall, stopping in front of NPC queue zone)
   const stoneData = useMemo(() => {
     return [
-      // Entrance & southern walkway
-      { id: 'st-1', x: 1.95, z: 3.3, r: 0.28, rot: 0.1 },
-      { id: 'st-2', x: 1.92, z: 2.7, r: 0.26, rot: 0.3 },
-      { id: 'st-3', x: 1.90, z: 2.1, r: 0.27, rot: -0.2 },
-      { id: 'st-4', x: 1.88, z: 1.5, r: 0.25, rot: 0.4 },
-      { id: 'st-5', x: 1.85, z: 0.9, r: 0.28, rot: -0.15 },
-      { id: 'st-6', x: 1.82, z: 0.3, r: 0.26, rot: 0.25 },
-      { id: 'st-7', x: 1.80, z: -0.3, r: 0.27, rot: -0.3 },
-      { id: 'st-8', x: 1.78, z: -0.9, r: 0.25, rot: 0.1 },
-      { id: 'st-9', x: 1.75, z: -1.4, r: 0.28, rot: 0.35 },
+      // Entrance & southern walkway along right side of plots
+      { id: 'st-1', x: 1.95, z: 3.2, r: 0.26, rot: 0.1 },
+      { id: 'st-2', x: 1.92, z: 2.6, r: 0.25, rot: 0.3 },
+      { id: 'st-3', x: 1.90, z: 2.0, r: 0.26, rot: -0.2 },
+      { id: 'st-4', x: 1.88, z: 1.4, r: 0.24, rot: 0.4 },
+      { id: 'st-5', x: 1.85, z: 0.8, r: 0.26, rot: -0.15 },
+      { id: 'st-6', x: 1.82, z: 0.2, r: 0.25, rot: 0.25 },
+      { id: 'st-7', x: 1.80, z: -0.4, r: 0.26, rot: -0.3 },
+      { id: 'st-8', x: 1.76, z: -1.0, r: 0.25, rot: 0.1 },
+      { id: 'st-9', x: 1.68, z: -1.5, r: 0.26, rot: 0.35 },
       // Curved bend around top-right plot
-      { id: 'st-10', x: 1.55, z: -1.85, r: 0.26, rot: -0.2 },
-      { id: 'st-11', x: 1.25, z: -2.2, r: 0.28, rot: 0.4 },
-      // Front stall counter apron
-      { id: 'st-12', x: 0.85, z: -2.42, r: 0.27, rot: -0.1 },
-      { id: 'st-13', x: 0.40, z: -2.46, r: 0.29, rot: 0.2 },
-      { id: 'st-14', x: -0.05, z: -2.48, r: 0.28, rot: -0.25 },
-      { id: 'st-15', x: -0.55, z: -2.52, r: 0.27, rot: 0.15 },
-      { id: 'st-16', x: -1.05, z: -2.58, r: 0.26, rot: -0.3 },
+      { id: 'st-10', x: 1.45, z: -1.85, r: 0.25, rot: -0.2 },
+      { id: 'st-11', x: 1.15, z: -2.1, r: 0.26, rot: 0.4 },
+      // Ends cleanly in front of NPC queue zone so no stone overlaps standing customers
+      { id: 'st-12', x: 0.80, z: -2.25, r: 0.27, rot: -0.1 },
     ];
   }, []);
 
@@ -89,7 +85,7 @@ export const TabletopDiorama: React.FC = () => {
     ];
   }, []);
 
-  // 5. Decorative Rocks along path and perimeter
+  // 5. Decorative Rocks along perimeter
   const rockData = useMemo(() => {
     return [
       { id: 'rk-1', x: -2.9, z: -2.8, s: 0.24, color: '#8F897F' },
@@ -140,7 +136,7 @@ export const TabletopDiorama: React.FC = () => {
         />
       </mesh>
 
-      {/* Desk Surface Top Plank (warm walnut with bevel step) */}
+      {/* Desk Surface Top Plank */}
       <mesh position={[0, -0.28, 0]} receiveShadow>
         <boxGeometry args={[16.3, 0.1, 14.3]} />
         <meshStandardMaterial
@@ -191,32 +187,32 @@ export const TabletopDiorama: React.FC = () => {
         />
       </mesh>
 
-      {/* 3. Continuous Low-Poly Dirt Walkway Bed */}
+      {/* 3. Flat Warm-Dirt / Sandstone Path Ribbon beneath Stones */}
       {/* Straight southern section along right edge of plots */}
-      <mesh position={[1.86, 0.205, 1.3]} rotation={[0, 0.02, 0]} receiveShadow>
-        <boxGeometry args={[0.72, 0.015, 4.0]} />
-        <meshStandardMaterial color="#886847" roughness={0.92} flatShading />
+      <mesh position={[1.88, 0.186, 1.4]} receiveShadow>
+        <boxGeometry args={[0.62, 0.008, 3.8]} />
+        <meshStandardMaterial color="#846546" roughness={0.92} flatShading />
       </mesh>
       {/* Angled curved bend around top-right plot */}
-      <mesh position={[1.42, 0.205, -1.82]} rotation={[0, -0.62, 0]} receiveShadow>
-        <boxGeometry args={[0.72, 0.015, 1.4]} />
-        <meshStandardMaterial color="#886847" roughness={0.92} flatShading />
+      <mesh position={[1.44, 0.186, -1.82]} rotation={[0, -0.65, 0]} receiveShadow>
+        <boxGeometry args={[0.62, 0.008, 1.2]} />
+        <meshStandardMaterial color="#846546" roughness={0.92} flatShading />
       </mesh>
-      {/* Apron in front of the stall counter */}
-      <mesh position={[-0.1, 0.205, -2.52]} rotation={[0, 0.04, 0]} receiveShadow>
-        <boxGeometry args={[2.5, 0.015, 0.72]} />
-        <meshStandardMaterial color="#886847" roughness={0.92} flatShading />
+      {/* Lead-in toward counter front */}
+      <mesh position={[0.96, 0.186, -2.2]} rotation={[0, -1.2, 0]} receiveShadow>
+        <boxGeometry args={[0.62, 0.008, 0.8]} />
+        <meshStandardMaterial color="#846546" roughness={0.92} flatShading />
       </mesh>
 
-      {/* 4. Sandstone Stepping Stones along the Walkway */}
+      {/* 4. Sandstone Stepping Stones — Completely Flat on Ground */}
       {stoneData.map((st, i) => (
         <mesh
           key={st.id}
-          position={[st.x, 0.225, st.z]}
-          rotation={[-Math.PI / 2, 0, st.rot]}
+          position={[st.x, 0.20, st.z]}
+          rotation={[0, st.rot, 0]}
           receiveShadow
         >
-          <cylinderGeometry args={[st.r, st.r * 1.08, 0.035, 7]} />
+          <cylinderGeometry args={[st.r, st.r * 1.05, 0.035, 7]} />
           <meshStandardMaterial
             color={i % 2 === 0 ? '#B5AEA2' : '#9E978C'}
             roughness={0.9}
@@ -243,7 +239,7 @@ export const TabletopDiorama: React.FC = () => {
         <meshStandardMaterial color="#7D512E" roughness={0.8} flatShading />
       </mesh>
 
-      {/* Right Fence Horizontal Rails (Flanking outside the walkway) */}
+      {/* Right Fence Horizontal Rails */}
       <mesh position={[3.2, 0.46, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.04, 0.05, 3.1]} />
         <meshStandardMaterial color="#7D512E" roughness={0.8} flatShading />
@@ -253,7 +249,7 @@ export const TabletopDiorama: React.FC = () => {
         <meshStandardMaterial color="#7D512E" roughness={0.8} flatShading />
       </mesh>
 
-      {/* 6. Decorative Rocks along path and perimeter */}
+      {/* 6. Decorative Rocks along perimeter */}
       {rockData.map((rk) => (
         <mesh
           key={rk.id}

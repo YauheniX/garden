@@ -145,21 +145,21 @@ export const BambooShop: React.FC<BambooShopProps> = ({ onSelectShop }) => {
         </mesh>
       </group>
 
-      {/* 5. Mounted Shop Signboard on Bamboo Roof Eaves (Cleanly above the Panda's head) */}
-      <group position={[0, 2.44, 0.96]} rotation={[-0.18, 0, 0]}>
-        {/* Wooden roof-mount brackets */}
-        <mesh position={[-0.45, -0.05, -0.02]} castShadow>
-          <boxGeometry args={[0.06, 0.2, 0.08]} />
+      {/* 5. Compact Shop Signboard Mounted Flush on the Roof Front Fascia */}
+      <group position={[0, 2.42, 1.12]} rotation={[0.12, 0, 0]}>
+        {/* Wooden roof-mount brackets attaching to front bamboo log */}
+        <mesh position={[-0.42, 0.02, -0.02]} castShadow>
+          <boxGeometry args={[0.05, 0.14, 0.06]} />
           <meshStandardMaterial color="#684422" roughness={0.75} flatShading />
         </mesh>
-        <mesh position={[0.45, -0.05, -0.02]} castShadow>
-          <boxGeometry args={[0.06, 0.2, 0.08]} />
+        <mesh position={[0.42, 0.02, -0.02]} castShadow>
+          <boxGeometry args={[0.05, 0.14, 0.06]} />
           <meshStandardMaterial color="#684422" roughness={0.75} flatShading />
         </mesh>
 
         {/* Board base */}
         <mesh castShadow receiveShadow>
-          <boxGeometry args={[1.38, 0.42, 0.08]} />
+          <boxGeometry args={[1.22, 0.30, 0.05]} />
           <meshStandardMaterial
             color="#F7EED8"
             roughness={0.6}
@@ -167,17 +167,17 @@ export const BambooShop: React.FC<BambooShopProps> = ({ onSelectShop }) => {
           />
         </mesh>
         {/* Dark chalkboard inset */}
-        <mesh position={[0, 0, 0.042]}>
-          <boxGeometry args={[1.26, 0.32, 0.01]} />
+        <mesh position={[0, 0, 0.028]}>
+          <boxGeometry args={[1.12, 0.22, 0.01]} />
           <meshStandardMaterial color="#2A302D" roughness={0.8} flatShading />
         </mesh>
         {/* Chalk flower emblem */}
-        <mesh position={[0, 0, 0.05]}>
-          <circleGeometry args={[0.085, 8]} />
+        <mesh position={[0, 0, 0.036]}>
+          <circleGeometry args={[0.065, 8]} />
           <meshBasicMaterial color="#FBBF24" />
         </mesh>
-        <mesh position={[0, 0, 0.052]}>
-          <circleGeometry args={[0.038, 6]} />
+        <mesh position={[0, 0, 0.038]}>
+          <circleGeometry args={[0.028, 6]} />
           <meshBasicMaterial color="#EF4444" />
         </mesh>
       </group>

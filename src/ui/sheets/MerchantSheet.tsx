@@ -55,7 +55,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({ isOpen, onClose })
       <div
         role="dialog"
         aria-modal="true"
-        className="fixed inset-x-0 bottom-0 z-30 flex flex-col justify-end pointer-events-auto animate-fade-in"
+        className="fixed inset-x-0 bottom-0 z-50 flex flex-col justify-end pointer-events-auto animate-fade-in"
       >
         <div
           className="fixed inset-0 bg-black/35 backdrop-blur-[2px] transition-opacity"
@@ -118,7 +118,7 @@ export const MerchantSheet: React.FC<MerchantSheetProps> = ({ isOpen, onClose })
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-x-0 bottom-0 z-30 flex flex-col justify-end pointer-events-auto animate-fade-in"
+      className="fixed inset-x-0 bottom-0 z-50 flex flex-col justify-end pointer-events-auto animate-fade-in"
     >
       {/* Semi-transparent backdrop */}
       <div

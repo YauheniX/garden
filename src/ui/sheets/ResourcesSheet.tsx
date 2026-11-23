@@ -91,7 +91,7 @@ export const ResourcesSheet: React.FC<ResourcesSheetProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-x-0 bottom-0 z-30 flex flex-col justify-end pointer-events-auto animate-fade-in"
+      className="fixed inset-x-0 bottom-0 z-50 flex flex-col justify-end pointer-events-auto animate-fade-in"
     >
       {/* Backdrop */}
       <div
