@@ -184,6 +184,34 @@ describe('orders engine', () => {
       expect(checklist.currentTagCount).toBe(2);
       expect(checklist.reason).toBeUndefined();
     });
+
+    it('safely evaluates recipe orders with 0, 1, or 2 flowers without throwing', () => {
+      const sampleRecipeOrder: NpcOrder = {
+        id: 'order_rec_checklist',
+        npcId: 'fox',
+        type: 'recipe',
+        flowerCount: 3,
+        requiredRecipeKey: 'daisy+daisy+tulip',
+        recipeName: 'Spring Awakening',
+        rewardCoinsMultiplier: 1.5,
+        rewardReputation: 5,
+        dialogue: 'Give me Spring Awakening!',
+        createdAt: Date.now(),
+      };
+
+      const check0 = getOrderChecklist(sampleRecipeOrder, []);
+      expect(check0.canDeliver).toBe(false);
+      expect(check0.flowerCountOk).toBe(false);
+      expect(check0.recipeRequirementOk).toBe(false);
+
+      const check1 = getOrderChecklist(sampleRecipeOrder, [{ id: 'daisy' }]);
+      expect(check1.canDeliver).toBe(false);
+      expect(check1.recipeRequirementOk).toBe(false);
+
+      const check2 = getOrderChecklist(sampleRecipeOrder, [{ id: 'daisy' }, { id: 'daisy' }]);
+      expect(check2.canDeliver).toBe(false);
+      expect(check2.recipeRequirementOk).toBe(false);
+    });
   });
 
   describe('validateOrderFulfillment', () => {
@@ -208,6 +236,19 @@ describe('orders engine', () => {
       ];
 
       const result = validateOrderFulfillment(sampleTagOrder, flowers);
+      expect(result.valid).toBe(true);
+      expect(result.reason).toBeUndefined();
+    });
+
+    it('properly validates inventory items containing UUIDs and flowerId property', () => {
+      // Inventory items format: { id: 'hf_123_uuid', flowerId: 'tulip', quality: 'normal' }
+      const inventoryFlowers = [
+        { id: 'hf_123_uuid_1', flowerId: 'tulip' as const, quality: 'normal' as const },
+        { id: 'hf_123_uuid_2', flowerId: 'tulip' as const, quality: 'normal' as const },
+        { id: 'hf_123_uuid_3', flowerId: 'daisy' as const, quality: 'normal' as const },
+      ];
+
+      const result = validateOrderFulfillment(sampleTagOrder, inventoryFlowers);
       expect(result.valid).toBe(true);
       expect(result.reason).toBeUndefined();
     });

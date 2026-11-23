@@ -13,6 +13,7 @@ import {
   type WeatherType,
 } from '../config/balance';
 import { FLOWERS, getFlower, type FlowerId } from '../config/flowers';
+import { SECRET_RECIPES } from '../config/recipes';
 import {
   MERCHANT_VISIT_DURATION_SEC,
   type MerchantId,
@@ -855,7 +856,16 @@ export const useGameStore = create<GameStore>()(
               order.requiredRecipeKey &&
               seenRecipeKeys.has(order.requiredRecipeKey);
 
-            if (isInvalidTag || isDuplicateRecipe) {
+            const isUnknownRecipe =
+              order.type === 'recipe' &&
+              (!order.requiredRecipeKey ||
+                !(state.unlockedRecipes ?? []).includes(order.requiredRecipeKey) ||
+                !SECRET_RECIPES[order.requiredRecipeKey]);
+
+            const isOversizedStarter =
+              (state.unlockedRecipes ?? []).length === 0 && order.flowerCount > 3;
+
+            if (isInvalidTag || isDuplicateRecipe || isUnknownRecipe || isOversizedStarter) {
               const otherOrders = arr.filter((_, i) => i !== idx);
               return generateOrder(state.unlockedRecipes ?? [], Math.random, otherOrders);
             }

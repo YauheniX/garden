@@ -64,6 +64,11 @@ export const TopHud: React.FC<TopHudProps> = ({
 
   const handleConfirmReset = () => {
     haptic('heavy');
+    try {
+      useGameStore.persist?.clearStorage?.();
+    } catch {
+      // ignore
+    }
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         window.localStorage.removeItem('panda-florist-save-v1');
@@ -72,8 +77,14 @@ export const TopHud: React.FC<TopHudProps> = ({
       }
     }
     resetGame();
+    setIsConfirmingReset(false);
+    setIsSettingsOpen(false);
     if (typeof window !== 'undefined') {
-      window.location.reload();
+      try {
+        window.location.reload();
+      } catch {
+        // ignore
+      }
     }
   };
 

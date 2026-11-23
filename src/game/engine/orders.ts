@@ -1,5 +1,6 @@
 import type { FlowerQuality } from '../config/balance';
 import {
+  FLOWERS,
   FLOWER_IDS,
   STARTER_FLOWER_IDS,
   getFlower,
@@ -7,7 +8,28 @@ import {
 } from '../config/flowers';
 import { NPC_LIST, type AnimalNpcId } from '../config/npcs';
 import { SECRET_RECIPES } from '../config/recipes';
-import { buildRecipeKey, type BouquetCraftResult } from './crafting';
+import {
+  buildRecipeKey,
+  isValidBouquetCount,
+  type BouquetCraftResult,
+} from './crafting';
+
+export type FlowerOrderItemInput =
+  | FlowerId
+  | { id?: string; flowerId?: FlowerId; quality?: FlowerQuality };
+
+/**
+ * Safely resolves a FlowerId from either a string, a { flowerId },
+ * or a { id } object (e.g. HarvestedFlower inventory item).
+ */
+export function getOrderFlowerId(f: FlowerOrderItemInput): FlowerId {
+  if (typeof f === 'string') return f;
+  if (typeof f === 'object' && f !== null) {
+    if (f.flowerId) return f.flowerId;
+    if (f.id && f.id in FLOWERS) return f.id as FlowerId;
+  }
+  return 'daisy';
+}
 
 export type OrderType = 'tag_constraint' | 'recipe';
 
@@ -139,9 +161,15 @@ export function generateOrder(
   }
   const pickedTag = tagPool[Math.floor(rng() * tagPool.length)];
 
-  // Choose bouquet flower count: 3 (50%), 4 (30%), 5 (20%)
-  const countRoll = rng();
-  const flowerCount = countRoll < 0.5 ? 3 : countRoll < 0.8 ? 4 : 5;
+  // For starter tier / new players (no secret recipes unlocked yet),
+  // customer orders strictly request 3 flowers (the minimum bouquet size).
+  // Once the player has unlocked recipes, larger 4-5 flower bouquets can be requested.
+  const isStarterTier = unlockedRecipes.length === 0;
+  let flowerCount = 3;
+  if (!isStarterTier) {
+    const countRoll = rng();
+    flowerCount = countRoll < 0.6 ? 3 : countRoll < 0.85 ? 4 : 5;
+  }
 
   // Required count of flowers containing the tag (e.g. 2 for 3 flowers, 2-3 for 4-5 flowers)
   const requiredTagCount =
@@ -166,7 +194,7 @@ export function generateOrder(
  */
 export function getOrderChecklist(
   order: NpcOrder,
-  selectedFlowers: Array<{ id: FlowerId; quality?: FlowerQuality }>
+  selectedFlowers: Array<FlowerOrderItemInput>
 ): OrderChecklist {
   const currentFlowerCount = selectedFlowers.length;
   const requiredFlowerCount = order.flowerCount;
@@ -174,7 +202,10 @@ export function getOrderChecklist(
 
   if (order.type === 'recipe') {
     const requiredRecipeName = order.recipeName ?? order.requiredRecipeKey ?? 'Unknown Recipe';
-    const currentRecipeKey = buildRecipeKey(selectedFlowers.map((f) => f.id));
+    const flowerIds = selectedFlowers.map(getOrderFlowerId);
+    const currentRecipeKey = isValidBouquetCount(flowerIds.length)
+      ? buildRecipeKey(flowerIds)
+      : null;
     const recipeRequirementOk =
       Boolean(order.requiredRecipeKey) && currentRecipeKey === order.requiredRecipeKey;
 
@@ -220,7 +251,8 @@ export function getOrderChecklist(
 
   let currentTagCount = 0;
   for (const f of selectedFlowers) {
-    const flowerDef = getFlower(f.id);
+    const flowerId = getOrderFlowerId(f);
+    const flowerDef = getFlower(flowerId);
     if (flowerDef.tags.includes(tag)) {
       currentTagCount++;
     }
@@ -263,7 +295,7 @@ export function getOrderChecklist(
  */
 export function validateOrderFulfillment(
   order: NpcOrder,
-  selectedFlowers: Array<{ id: FlowerId; quality?: FlowerQuality }>
+  selectedFlowers: Array<FlowerOrderItemInput>
 ): OrderValidationResult {
   if (selectedFlowers.length < 3 || selectedFlowers.length > 5) {
     return {

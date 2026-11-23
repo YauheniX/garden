@@ -73,7 +73,7 @@ export const NPCS: Record<AnimalNpcId, AnimalNpcDefinition> = {
     displayName: 'Clement the Capybara',
     species: 'Zen Capybara',
     quote: 'No worries at all... just peaceful, calming herbs and soothing purple tones.',
-    preferredTags: ['calming', 'purple', 'aromatic', 'herb', 'cottage'],
+    preferredTags: ['pastoral', 'calming', 'purple', 'aromatic', 'rustic', 'herb'],
     coinMultiplier: 1.35,
     reputationReward: 4,
     palette: {

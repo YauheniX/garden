@@ -642,12 +642,12 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                 </span>
                 <span
                   className={
-                    selectedFlowers.length >= 3
+                    selectedFlowers.length >= (targetedOrder ? targetedOrder.flowerCount : 3)
                       ? 'text-emerald-700 font-extrabold'
-                      : 'text-amber-700'
+                      : 'text-amber-700 font-bold'
                   }
                 >
-                  {selectedFlowers.length} / 5 flowers
+                  {selectedFlowers.length} / {targetedOrder ? targetedOrder.flowerCount : 5} flowers
                 </span>
               </div>
 
@@ -656,6 +656,7 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                 {[0, 1, 2, 3, 4].map((slotIdx) => {
                   const flower = selectedFlowers[slotIdx];
                   const def = flower ? getFlower(flower.flowerId) : null;
+                  const reqSlots = targetedOrder ? targetedOrder.flowerCount : 3;
 
                   return (
                     <div
@@ -663,8 +664,8 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                       className={`h-16 rounded-xl border flex flex-col items-center justify-center p-1 text-center transition-all ${
                         flower
                           ? 'bg-amber-50/70 border-amber-300 shadow-sm'
-                          : slotIdx < 3
-                          ? 'bg-[#2D241E]/5 border-dashed border-[#2D241E]/20 text-[#2D241E]/40'
+                          : slotIdx < reqSlots
+                          ? 'bg-[#2D241E]/5 border-dashed border-[#2D241E]/20 text-[#2D241E]/50 font-semibold'
                           : 'bg-[#2D241E]/3 border-dashed border-[#2D241E]/15 text-[#2D241E]/30'
                       }`}
                     >
@@ -688,7 +689,7 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                         </>
                       ) : (
                         <span className="text-[10px] font-medium">
-                          {slotIdx < 3 ? 'Req' : 'Opt'}
+                          {slotIdx < reqSlots ? 'Req' : 'Opt'}
                         </span>
                       )}
                     </div>
