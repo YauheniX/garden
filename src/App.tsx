@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from './game/store/useGameStore';
 import { GardenScene } from './scene/GardenScene';
+import { decodeGift, type DecodedGift } from './telegram/gifts';
+import { getStartParam } from './telegram/tma';
 import { TopHud } from './ui/hud/TopHud';
 import { BambooWellGame } from './ui/minigames/BambooWellGame';
 import { MoleCompostGame } from './ui/minigames/MoleCompostGame';
+import { DecorSheet } from './ui/sheets/DecorSheet';
+import { GiftModal } from './ui/sheets/GiftModal';
+import { LeaderboardSheet } from './ui/sheets/LeaderboardSheet';
 import { MerchantSheet } from './ui/sheets/MerchantSheet';
 import { PlotSheet } from './ui/sheets/PlotSheet';
 import { ResourcesSheet } from './ui/sheets/ResourcesSheet';
@@ -19,6 +24,21 @@ export const App: React.FC = () => {
   const [shopOrderId, setShopOrderId] = useState<string | null>(null);
 
   const [merchantOpen, setMerchantOpen] = useState(false);
+  const [decorOpen, setDecorOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [pendingGift, setPendingGift] = useState<DecodedGift | null>(() => {
+    const startParam = getStartParam();
+    if (startParam && startParam.startsWith('g_')) {
+      const received = useGameStore.getState().receivedGifts;
+      if (!received.includes(startParam)) {
+        const decoded = decodeGift(startParam);
+        if (decoded.isValid) {
+          return decoded;
+        }
+      }
+    }
+    return null;
+  });
 
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [resourcesTab, setResourcesTab] = useState<'water' | 'fertilizer'>('water');
@@ -56,6 +76,8 @@ export const App: React.FC = () => {
       <TopHud
         onOpenResources={handleOpenResources}
         onOpenMerchant={() => setMerchantOpen(true)}
+        onOpenDecor={() => setDecorOpen(true)}
+        onOpenLeaderboard={() => setLeaderboardOpen(true)}
       />
 
       {/* 2. 3D Low-Poly Tabletop Diorama Scene */}
@@ -65,6 +87,7 @@ export const App: React.FC = () => {
         onSelectShop={handleSelectShop}
         onSelectOrder={handleSelectOrder}
         onSelectMerchant={() => setMerchantOpen(true)}
+        onOpenDecor={() => setDecorOpen(true)}
       />
 
       {/* 3. Warm Cream Bottom Sheet for Plots */}
@@ -91,7 +114,27 @@ export const App: React.FC = () => {
         onClose={() => setMerchantOpen(false)}
       />
 
-      {/* 6. Warm Cream Bottom Sheet for Water & Fertilizer Economy */}
+      {/* 6. Warm Cream Bottom Sheet for Garden Decor */}
+      <DecorSheet
+        isOpen={decorOpen}
+        onClose={() => setDecorOpen(false)}
+      />
+
+      {/* 7. Warm Cream Bottom Sheet for Hall of Fame Leaderboard */}
+      <LeaderboardSheet
+        isOpen={leaderboardOpen}
+        onClose={() => setLeaderboardOpen(false)}
+      />
+
+      {/* 8. Incoming Friend Gift Received Modal Overlay */}
+      {pendingGift && (
+        <GiftModal
+          gift={pendingGift}
+          onClose={() => setPendingGift(null)}
+        />
+      )}
+
+      {/* 9. Warm Cream Bottom Sheet for Water & Fertilizer Economy */}
       <ResourcesSheet
         isOpen={resourcesOpen}
         activeTab={resourcesTab}
@@ -101,7 +144,7 @@ export const App: React.FC = () => {
         onPlayCompost={() => setActiveMinigame('compost')}
       />
 
-      {/* 7. Resource Minigames */}
+      {/* 10. Resource Minigames */}
       {activeMinigame === 'well' && (
         <BambooWellGame onClose={() => setActiveMinigame(null)} />
       )}
@@ -109,8 +152,28 @@ export const App: React.FC = () => {
         <MoleCompostGame onClose={() => setActiveMinigame(null)} />
       )}
 
-      {/* 8. Floating Action Pill for Quick Access to Shop & Orders */}
-      <div className="fixed bottom-4 right-4 z-20 pointer-events-auto">
+      {/* 11. Floating Action Pill Dock for Quick Access */}
+      <div className="fixed bottom-4 right-4 z-20 pointer-events-auto flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setLeaderboardOpen(true)}
+          className="backdrop-blur-md bg-[#FBF7F0]/95 hover:bg-white text-[#2D241E] border border-[#2D241E]/15 rounded-full px-3.5 py-2.5 shadow-lg flex items-center gap-1.5 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+          title="Hall of Fame Leaderboard"
+        >
+          <span className="text-base">🏆</span>
+          <span className="hidden sm:inline">Ranks</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setDecorOpen(true)}
+          className="backdrop-blur-md bg-[#FBF7F0]/95 hover:bg-white text-[#2D241E] border border-[#2D241E]/15 rounded-full px-3.5 py-2.5 shadow-lg flex items-center gap-1.5 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+          title="Garden Decor Shop"
+        >
+          <span className="text-base">🏮</span>
+          <span className="hidden sm:inline">Decor</span>
+        </button>
+
         <button
           type="button"
           onClick={() => {
@@ -121,7 +184,7 @@ export const App: React.FC = () => {
           className="backdrop-blur-md bg-[#FBF7F0]/95 hover:bg-white text-[#2D241E] border border-[#2D241E]/15 rounded-full px-4 py-2.5 shadow-lg flex items-center gap-2 text-xs font-bold transition-all active:scale-95 cursor-pointer"
         >
           <span className="text-base">🌸</span>
-          <span>Florist Stall</span>
+          <span>Stall</span>
           {activeOrders.length > 0 && (
             <span className="px-1.5 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-extrabold animate-pulse">
               {activeOrders.length}

@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { useGameStore } from '../game/store/useGameStore';
 import { AnimalNPC } from './AnimalNPC';
 import { BambooShop } from './BambooShop';
+import { GardenDecor } from './GardenDecor';
 import { GardenPlot } from './GardenPlot';
 import { TabletopDiorama } from './TabletopDiorama';
 import { TravelingMerchant } from './TravelingMerchant';
@@ -15,6 +16,7 @@ interface GardenSceneProps {
   onSelectShop: () => void;
   onSelectOrder?: (orderId: string) => void;
   onSelectMerchant?: () => void;
+  onOpenDecor?: () => void;
 }
 
 export const GardenScene: React.FC<GardenSceneProps> = ({
@@ -23,6 +25,7 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
   onSelectShop,
   onSelectOrder,
   onSelectMerchant,
+  onOpenDecor,
 }) => {
   const plots = useGameStore((s) => s.plots);
   const activeOrders = useGameStore((s) => s.activeOrders);
@@ -127,6 +130,9 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
             />
           ))}
         </group>
+
+        {/* 3b. Interactive 3D Garden Decorations */}
+        <GardenDecor onOpenDecorSheet={onOpenDecor} />
 
         {/* 4. Weather 3D FX (Sun particles, falling raindrops, ground mist) */}
         <WeatherFX />

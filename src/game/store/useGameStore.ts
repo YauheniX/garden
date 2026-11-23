@@ -17,6 +17,12 @@ import {
   MERCHANT_VISIT_DURATION_SEC,
   type MerchantId,
 } from '../config/merchants';
+import { getDecor, type DecorId } from '../config/decor';
+import {
+  decodeGift,
+  encodeGift,
+  type DecodedGift,
+} from '../../telegram/gifts';
 import {
   canBuyMerchantOffer,
   generateMerchantOffers,
@@ -37,6 +43,56 @@ import {
   type OrderRewardResult,
 } from '../engine/orders';
 import { haptic } from '../../telegram/tma';
+
+export interface LeaderboardEntry {
+  id: string;
+  name: string;
+  title: string;
+  avatar: string;
+  reputation: number;
+  isPlayer?: boolean;
+}
+
+export const ANIMAL_RIVALS: Omit<LeaderboardEntry, 'isPlayer'>[] = [
+  { id: 'rival_panda', name: 'Master Panda Bao', title: 'Grand Floral Sage', avatar: '🐼', reputation: 320 },
+  { id: 'rival_owl', name: 'Professor Hoot', title: 'Ancient Herbalist', avatar: '🦉', reputation: 240 },
+  { id: 'rival_fox', name: 'Lord Felix', title: 'Velvet Rose Connoisseur', avatar: '🦊', reputation: 180 },
+  { id: 'rival_bear', name: 'Barnaby Honey-Paw', title: 'Sunflower King', avatar: '🐻', reputation: 130 },
+  { id: 'rival_capy', name: 'Zen Clement', title: 'Lavender Monk', avatar: '🥔', reputation: 90 },
+  { id: 'rival_rabbit', name: 'Rosie Hopscotch', title: 'Speedy Tulip Harvester', avatar: '🐰', reputation: 60 },
+  { id: 'rival_hedgehog', name: 'Hattie Quillbaker', title: 'Daisy Weaver', avatar: '🦔', reputation: 35 },
+  { id: 'rival_squirrel', name: 'Hazel Nutkin', title: 'Sprout Gatherer', avatar: '🐿️', reputation: 20 },
+  { id: 'rival_otter', name: 'Ollie Splash', title: 'Spring Waterer', avatar: '🦦', reputation: 10 },
+];
+
+export function getLeaderboard(
+  reputation: number,
+  playerName: string
+): LeaderboardEntry[] {
+  const playerTitle =
+    reputation >= 300
+      ? 'Legendary Florist'
+      : reputation >= 150
+      ? 'Master Florist'
+      : reputation >= 75
+      ? 'Journeyman Florist'
+      : reputation >= 25
+      ? 'Green Thumb Florist'
+      : 'Novice Florist';
+
+  const playerEntry: LeaderboardEntry = {
+    id: 'player_entry',
+    name: playerName || 'Panda Florist (You)',
+    title: playerTitle,
+    avatar: '🐼',
+    reputation,
+    isPlayer: true,
+  };
+
+  const combined = [...ANIMAL_RIVALS, playerEntry];
+  combined.sort((a, b) => b.reputation - a.reputation);
+  return combined.slice(0, 10);
+}
 
 export interface GardenPlotState {
   id: string;
@@ -81,6 +137,8 @@ export interface GameState {
   merchantVisit: MerchantVisit | null;
   nextMerchantAt: number;
   minigameCooldowns: MinigameCooldowns;
+  unlockedDecor: DecorId[];
+  receivedGifts: string[];
 }
 
 export interface GameActions {
@@ -94,6 +152,18 @@ export interface GameActions {
   syncMerchant: (now?: number) => void;
   buyMerchantOffer: (offerId: string) => { success: boolean; reason?: string };
   summonMerchant: (merchantId?: MerchantId) => void;
+  purchaseDecor: (decorId: DecorId) => boolean;
+  claimTelegramGift: (startParam: string) => {
+    success: boolean;
+    gift?: DecodedGift;
+    reason?: string;
+  };
+  wrapBouquetGift: (harvestedIds: string[]) => {
+    success: boolean;
+    giftParam?: string;
+    bouquet?: BouquetCraftResult;
+    reason?: string;
+  };
   buySeed: (flowerId: FlowerId, qty?: number) => boolean;
   buyWater: (qty?: number) => boolean;
   buyFertilizer: (qty?: number) => boolean;
@@ -148,6 +218,8 @@ export function createInitialState(): GameState {
     ],
     merchantVisit: null,
     nextMerchantAt: Date.now() + 60 * 1000,
+    unlockedDecor: [],
+    receivedGifts: [],
     minigameCooldowns: {
       wellReadyAt: 0,
       compostReadyAt: 0,
@@ -532,6 +604,123 @@ export const useGameStore = create<GameStore>()(
         haptic('medium');
       },
 
+      purchaseDecor: (decorId) => {
+        const state = get();
+        if (state.unlockedDecor.includes(decorId)) {
+          return false;
+        }
+
+        const decor = getDecor(decorId);
+        if (state.coins < decor.coinCost) {
+          return false;
+        }
+
+        set({
+          coins: state.coins - decor.coinCost,
+          unlockedDecor: [...state.unlockedDecor, decorId],
+          reputation: state.reputation + decor.reputationBonus,
+        });
+
+        haptic('success');
+        return true;
+      },
+
+      claimTelegramGift: (startParam) => {
+        const state = get();
+        if (state.receivedGifts.includes(startParam)) {
+          return {
+            success: false,
+            reason: 'This gift has already been claimed!',
+          };
+        }
+
+        const gift = decodeGift(startParam);
+        if (!gift.isValid) {
+          return {
+            success: false,
+            reason: 'Invalid or corrupted gift link.',
+          };
+        }
+
+        // Convert gift flowers to HarvestedFlower objects
+        const newHarvested: HarvestedFlower[] = gift.flowers.map((f, idx) => ({
+          id: `gift_flower_${Date.now()}_${idx}`,
+          flowerId: f.id,
+          quality: f.quality,
+          harvestedAt: Date.now(),
+        }));
+
+        const newSeeds = {
+          ...state.seeds,
+          [gift.bonusSeeds.flowerId]:
+            (state.seeds[gift.bonusSeeds.flowerId] ?? 0) +
+            gift.bonusSeeds.count,
+        };
+
+        set({
+          harvestedFlowers: [...state.harvestedFlowers, ...newHarvested],
+          seeds: newSeeds,
+          coins: state.coins + gift.bonusCoins,
+          receivedGifts: [...state.receivedGifts, startParam],
+          reputation: state.reputation + 10,
+        });
+
+        haptic('heavy');
+        return { success: true, gift };
+      },
+
+      wrapBouquetGift: (harvestedIds) => {
+        const state = get();
+        if (!isValidBouquetCount(harvestedIds.length)) {
+          return {
+            success: false,
+            reason: 'Gifts must contain between 3 and 5 flowers.',
+          };
+        }
+
+        const selectedFlowers: HarvestedFlower[] = [];
+        const remainingInventory = [...state.harvestedFlowers];
+
+        for (const id of harvestedIds) {
+          const index = remainingInventory.findIndex((f) => f.id === id);
+          if (index === -1) {
+            return {
+              success: false,
+              reason: 'Selected flower is no longer in inventory.',
+            };
+          }
+          selectedFlowers.push(remainingInventory[index]);
+          remainingInventory.splice(index, 1);
+        }
+
+        const flowerItems = selectedFlowers.map((f) => ({
+          id: f.flowerId,
+          quality: f.quality,
+        }));
+
+        const giftParam = encodeGift(flowerItems);
+        const bouquet = calculateBouquetPrice(flowerItems);
+
+        const newUnlockedRecipes =
+          bouquet.isSecretRecipe &&
+          !state.unlockedRecipes.includes(bouquet.recipeKey)
+            ? [...state.unlockedRecipes, bouquet.recipeKey]
+            : state.unlockedRecipes;
+
+        set({
+          harvestedFlowers: remainingInventory,
+          unlockedRecipes: newUnlockedRecipes,
+          reputation: state.reputation + 5,
+        });
+
+        haptic('success');
+        return {
+          success: true,
+          giftParam,
+          bouquet,
+        };
+      },
+
       buySeed: (flowerId, qty = 1) => {
         if (qty <= 0) return false;
         const state = get();
@@ -656,6 +845,10 @@ export const useGameStore = create<GameStore>()(
         }
         if (state && !state.nextMerchantAt) {
           state.nextMerchantAt = Date.now() + 60 * 1000;
+        }
+        if (state) {
+          if (!state.unlockedDecor) state.unlockedDecor = [];
+          if (!state.receivedGifts) state.receivedGifts = [];
         }
       },
       storage: createJSONStorage(() => {

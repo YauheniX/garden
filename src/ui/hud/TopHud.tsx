@@ -15,11 +15,15 @@ import { getTelegramUser, haptic } from '../../telegram/tma';
 interface TopHudProps {
   onOpenResources?: (tab: 'water' | 'fertilizer') => void;
   onOpenMerchant?: () => void;
+  onOpenDecor?: () => void;
+  onOpenLeaderboard?: () => void;
 }
 
 export const TopHud: React.FC<TopHudProps> = ({
   onOpenResources,
   onOpenMerchant,
+  onOpenDecor,
+  onOpenLeaderboard,
 }) => {
   const coins = useGameStore((s) => s.coins);
   const water = useGameStore((s) => s.water);
@@ -76,6 +80,20 @@ export const TopHud: React.FC<TopHudProps> = ({
             </span>
           </button>
         )}
+
+        {/* Garden Decor Shop Button */}
+        <button
+          type="button"
+          onClick={() => {
+            haptic('light');
+            onOpenDecor?.();
+          }}
+          className="pointer-events-auto cursor-pointer backdrop-blur-md bg-[#FBF7F0]/85 active:scale-95 transition-transform border border-[#2D241E]/10 rounded-full px-2.5 py-1.5 shadow-sm flex items-center gap-1 text-[#2D241E] hover:bg-white"
+          title="Open Garden Decor Shop"
+        >
+          <span>🏮</span>
+          <span className="font-semibold">Decor</span>
+        </button>
 
         {/* Clickable Weather Toggle Badge */}
         <button
@@ -147,11 +165,19 @@ export const TopHud: React.FC<TopHudProps> = ({
 
         <div className="w-[1px] h-4 bg-[#2D241E]/15" />
 
-        {/* Reputation */}
-        <div className="flex items-center gap-1.5" title="Florist Reputation">
+        {/* Reputation (Clickable -> Opens Hall of Fame Leaderboard) */}
+        <button
+          type="button"
+          onClick={() => {
+            haptic('light');
+            onOpenLeaderboard?.();
+          }}
+          className="flex items-center gap-1.5 cursor-pointer hover:bg-[#2D241E]/5 px-2 py-1 -my-1 rounded-xl transition-all active:scale-95"
+          title="Florist Reputation — tap to view Hall of Fame Leaderboard"
+        >
           <Star className="w-4 h-4 text-rose-500 fill-rose-500" />
           <span className="font-bold tracking-tight">{reputation}</span>
-        </div>
+        </button>
       </div>
     </header>
   );

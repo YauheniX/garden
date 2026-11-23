@@ -5,6 +5,7 @@ import {
   Check,
   Coins,
   Flower2,
+  Gift,
   Lock,
   ShoppingBag,
   Sparkles,
@@ -24,7 +25,7 @@ import {
   validateOrderFulfillment,
 } from '../../game/engine/orders';
 import { useGameStore } from '../../game/store/useGameStore';
-import { haptic } from '../../telegram/tma';
+import { haptic, shareGiftLink } from '../../telegram/tma';
 
 interface ShopSheetProps {
   isOpen: boolean;
@@ -54,6 +55,7 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
   const unlockedRecipes = useGameStore((s) => s.unlockedRecipes);
   const fulfillOrder = useGameStore((s) => s.fulfillOrder);
   const sellFreeBouquet = useGameStore((s) => s.sellFreeBouquet);
+  const wrapBouquetGift = useGameStore((s) => s.wrapBouquetGift);
 
   const [activeTab, setActiveTab] = useState<'orders' | 'bench' | 'recipes'>(initialTab);
   const [targetedOrderId, setTargetedOrderId] = useState<string | null>(initialOrderId);
@@ -155,6 +157,27 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
         type: 'success',
       });
       setSelectedHarvestIds([]);
+    }
+  };
+
+  const handleWrapGift = () => {
+    const result = wrapBouquetGift(selectedHarvestIds);
+    if (result.success && result.giftParam && result.bouquet) {
+      void shareGiftLink(
+        'PandaFloristBot',
+        result.giftParam,
+        `🌸 I wrapped a special "${result.bouquet.bouquetName}" bouquet for you in Panda Florist! Tap to unwrap:`
+      );
+      setFeedbackMsg({
+        text: `🎁 Wrapped "${result.bouquet.bouquetName}"! Link copied/opened.`,
+        type: 'success',
+      });
+      setSelectedHarvestIds([]);
+    } else {
+      setFeedbackMsg({
+        text: result.reason ?? 'Failed to wrap gift.',
+        type: 'error',
+      });
     }
   };
 
@@ -519,15 +542,27 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                     <span>Fulfill for {getNpc(targetedOrder.npcId).displayName.split(' ')[0]}</span>
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    disabled={!canCraft}
-                    onClick={handleSellFreeBouquet}
-                    className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Coins className="w-4 h-4" />
-                    <span>Sell Free Bouquet (~{bouquetPreview?.finalPrice ?? 0}c)</span>
-                  </button>
+                  <div className="flex-1 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={!canCraft}
+                      onClick={handleSellFreeBouquet}
+                      className="flex-1 py-2.5 px-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Coins className="w-3.5 h-3.5" />
+                      <span>Sell (~{bouquetPreview?.finalPrice ?? 0}c)</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canCraft}
+                      onClick={handleWrapGift}
+                      className="flex-1 py-2.5 px-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                      title="Wrap bouquet as a Telegram gift link for a friend"
+                    >
+                      <Gift className="w-3.5 h-3.5" />
+                      <span>Wrap Gift 🎁</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

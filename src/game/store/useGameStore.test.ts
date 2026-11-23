@@ -511,6 +511,63 @@ describe('useGameStore', () => {
     });
   });
 
+  describe('garden decor & gifts', () => {
+    it('purchases garden decor when player can afford it', () => {
+      useGameStore.setState({ coins: 300, reputation: 10, unlockedDecor: [] });
+
+      const success = useGameStore.getState().purchaseDecor('lantern');
+      expect(success).toBe(true);
+
+      const state = useGameStore.getState();
+      expect(state.coins).toBe(300 - 120);
+      expect(state.reputation).toBe(10 + 10);
+      expect(state.unlockedDecor).toContain('lantern');
+
+      // Attempting to buy again should fail
+      const repeatBuy = useGameStore.getState().purchaseDecor('lantern');
+      expect(repeatBuy).toBe(false);
+    });
+
+    it('claims a valid Telegram gift and awards flowers, seeds, and coins', () => {
+      // Gift payload for daisy normal, tulip normal, rose normal: 'g_dntnrn'
+      const startParam = 'g_dntnrn';
+      useGameStore.setState({
+        coins: 100,
+        harvestedFlowers: [],
+        seeds: { ...useGameStore.getState().seeds, sunflower: 0, tulip: 0 },
+        receivedGifts: [],
+      });
+
+      const claimRes = useGameStore.getState().claimTelegramGift(startParam);
+      expect(claimRes.success).toBe(true);
+
+      const state = useGameStore.getState();
+      expect(state.harvestedFlowers).toHaveLength(3);
+      expect(state.coins).toBeGreaterThan(100);
+      expect(state.receivedGifts).toContain(startParam);
+
+      // Attempting double-claim of the same link should fail
+      const repeatClaim = useGameStore.getState().claimTelegramGift(startParam);
+      expect(repeatClaim.success).toBe(false);
+      expect(repeatClaim.reason).toContain('already been claimed');
+    });
+
+    it('wraps bouquet into a shareable Telegram gift link', () => {
+      useGameStore.setState({
+        harvestedFlowers: [
+          { id: 'f1', flowerId: 'daisy', quality: 'normal', harvestedAt: Date.now() },
+          { id: 'f2', flowerId: 'tulip', quality: 'rare', harvestedAt: Date.now() },
+          { id: 'f3', flowerId: 'rose', quality: 'shiny', harvestedAt: Date.now() },
+        ],
+      });
+
+      const wrapRes = useGameStore.getState().wrapBouquetGift(['f1', 'f2', 'f3']);
+      expect(wrapRes.success).toBe(true);
+      expect(wrapRes.giftParam).toBe('g_dntrrs');
+      expect(useGameStore.getState().harvestedFlowers).toHaveLength(0);
+    });
+  });
+
   describe('state reset', () => {
     it('resets game state back to clean initial state', () => {
       useGameStore.getState().plantSeed('plot_0', 'daisy');
