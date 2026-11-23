@@ -485,11 +485,10 @@ export const useGameStore = create<GameStore>()(
             ? [...state.unlockedRecipes, bouquetResult.recipeKey]
             : state.unlockedRecipes;
 
-        // Replace completed order with a new customer order
+        // Remove completed order and append a fresh new customer order
         const newOrder = generateOrder(newUnlockedRecipes);
-        const updatedOrders = state.activeOrders.map((o) =>
-          o.id === orderId ? newOrder : o
-        );
+        const remainingOrders = state.activeOrders.filter((o) => o.id !== orderId);
+        const updatedOrders = [...remainingOrders, newOrder].slice(0, 3);
 
         set({
           harvestedFlowers: remainingInventory,

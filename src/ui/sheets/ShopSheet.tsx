@@ -131,12 +131,13 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
       ? calculateOrderReward(targetedOrder, bouquetPreview)
       : null;
 
-  const handleFulfillActiveOrder = () => {
-    if (!targetedOrder) return;
-    const result = fulfillOrder(targetedOrder.id, selectedHarvestIds);
+  const handleFulfillActiveOrder = (orderToFulfill = targetedOrder) => {
+    if (!orderToFulfill) return;
+    const customer = getNpc(orderToFulfill.npcId);
+    const result = fulfillOrder(orderToFulfill.id, selectedHarvestIds);
     if (result.success && result.reward) {
       setFeedbackMsg({
-        text: `🎉 Order Fulfilled! Earned +${result.reward.coins} Coins & +${result.reward.reputation} Rep!`,
+        text: `🎉 Delivered to ${customer.displayName}! +${result.reward.coins} Coins & +${result.reward.reputation} Rep!`,
         type: 'success',
       });
       setSelectedHarvestIds([]);
@@ -148,6 +149,18 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
       });
     }
   };
+
+  // Optional QoL: Check if current flowers satisfy any waiting NPC order in freeform mode
+  let matchingWaitingOrder: (typeof activeOrders)[number] | null = null;
+  if (!targetedOrder && canCraft) {
+    const inputs = selectedFlowers.map((f) => ({ id: f.flowerId, quality: f.quality }));
+    for (const order of activeOrders) {
+      if (validateOrderFulfillment(order, inputs).valid) {
+        matchingWaitingOrder = order;
+        break;
+      }
+    }
+  }
 
   const handleSellFreeBouquet = () => {
     const result = sellFreeBouquet(selectedHarvestIds);
@@ -520,6 +533,25 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                 </div>
               )}
 
+              {/* Optional QoL: Delivery shortcut if freeform flowers match a waiting NPC order */}
+              {matchingWaitingOrder && (
+                <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-2 text-xs animate-fade-in shadow-sm">
+                  <div className="flex items-center gap-1.5 text-amber-900 font-bold truncate">
+                    <span className="text-sm shrink-0">⭐</span>
+                    <span className="truncate">
+                      Matches {getNpc(matchingWaitingOrder.npcId).displayName}&apos;s order!
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleFulfillActiveOrder(matchingWaitingOrder)}
+                    className="shrink-0 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-lg shadow-sm text-[11px] cursor-pointer active:scale-95 transition-all"
+                  >
+                    Deliver (+Bonus)
+                  </button>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-1 gap-2">
                 <button
@@ -535,11 +567,13 @@ export const ShopSheet: React.FC<ShopSheetProps> = ({
                   <button
                     type="button"
                     disabled={!canCraft || !orderValidation?.valid}
-                    onClick={handleFulfillActiveOrder}
+                    onClick={() => handleFulfillActiveOrder(targetedOrder)}
                     className="flex-1 py-2.5 px-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Check className="w-4 h-4" />
-                    <span>Fulfill for {getNpc(targetedOrder.npcId).displayName.split(' ')[0]}</span>
+                    <span>
+                      Deliver to {getNpc(targetedOrder.npcId).displayName.split(' ')[0]} (+{orderReward?.coins ?? bouquetPreview?.finalPrice ?? 0} Coins)
+                    </span>
                   </button>
                 ) : (
                   <div className="flex-1 flex gap-2">

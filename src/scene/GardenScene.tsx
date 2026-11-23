@@ -37,8 +37,7 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
   interface QueuedCustomer {
     order: NpcOrder;
     slotIndex: number;
-    isLeaving: boolean;
-    spawnTime: number;
+    state: 'waiting' | 'arriving' | 'leaving';
   }
 
   const [prevOrders, setPrevOrders] = useState(activeOrders);
@@ -47,8 +46,7 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
     return initial.map((order, slotIndex) => ({
       order,
       slotIndex,
-      isLeaving: false,
-      spawnTime: 0, // Initial load: already waiting at counter
+      state: 'waiting' as const,
     }));
   });
 
@@ -64,11 +62,11 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
       if (activeMap.has(item.order.id)) {
         // Still active: update slotIndex if line advanced
         const { idx } = activeMap.get(item.order.id)!;
-        next.push({ ...item, slotIndex: idx, isLeaving: false });
+        next.push({ ...item, slotIndex: idx });
         activeMap.delete(item.order.id);
-      } else if (!item.isLeaving) {
+      } else if (item.state !== 'leaving') {
         // Newly fulfilled / removed: transition to leaving
-        next.push({ ...item, isLeaving: true });
+        next.push({ ...item, state: 'leaving' });
       } else {
         // Already leaving: keep until exit complete
         next.push(item);
@@ -80,8 +78,7 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
       next.push({
         order,
         slotIndex: idx,
-        isLeaving: false,
-        spawnTime: 1, // Newly arrived order
+        state: 'arriving',
       });
     }
 
@@ -94,10 +91,10 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
 
   // Safety cleanup in case an exit event was missed
   useEffect(() => {
-    const hasLeaving = customerQueue.some((c) => c.isLeaving);
+    const hasLeaving = customerQueue.some((c) => c.state === 'leaving');
     if (!hasLeaving) return;
     const timer = setTimeout(() => {
-      setCustomerQueue((prev) => prev.filter((item) => !item.isLeaving));
+      setCustomerQueue((prev) => prev.filter((item) => item.state !== 'leaving'));
     }, 4000);
     return () => clearTimeout(timer);
   }, [customerQueue]);
@@ -193,8 +190,7 @@ export const GardenScene: React.FC<GardenSceneProps> = ({
               key={item.order.id}
               order={item.order}
               index={item.slotIndex}
-              isLeaving={item.isLeaving}
-              spawnTime={item.spawnTime}
+              npcState={item.state}
               onSelectNpc={(orderId) => {
                 if (onSelectOrder) {
                   onSelectOrder(orderId);

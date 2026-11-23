@@ -9,8 +9,7 @@ import { haptic } from '../telegram/tma';
 interface AnimalNPCProps {
   order: NpcOrder;
   index: number;
-  isLeaving?: boolean;
-  spawnTime?: number;
+  npcState?: 'waiting' | 'arriving' | 'leaving';
   onSelectNpc: (orderId: string) => void;
   onExitComplete?: (orderId: string) => void;
 }
@@ -35,19 +34,17 @@ const QUEUE_ROTATIONS = [0.38, 0.08, -0.38];
 export const AnimalNPC: React.FC<AnimalNPCProps> = ({
   order,
   index,
-  isLeaving = false,
-  spawnTime = 0,
+  npcState = 'waiting',
   onSelectNpc,
   onExitComplete,
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Group>(null);
-  const bubbleRef = useRef<THREE.Group>(null);
+  const badgeRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
   // Animation progress: 0.0 (entrance) -> 1.0 (queue slot)
-  // If spawnTime === 0, the game loaded with this order already present -> start at 1.0
-  const progressRef = useRef(spawnTime === 0 ? 1.0 : 0.0);
+  const progressRef = useRef(npcState === 'arriving' ? 0.0 : 1.0);
   const exitTimerRef = useRef(0);
   const exitFinishedRef = useRef(false);
 
@@ -78,6 +75,7 @@ export const AnimalNPC: React.FC<AnimalNPCProps> = ({
     if (!groupRef.current) return;
     const t = clock.elapsedTime;
     const { points, cumDists, total } = route;
+    const isLeaving = npcState === 'leaving';
 
     // --- State A: Leaving ---
     if (isLeaving) {
@@ -90,7 +88,7 @@ export const AnimalNPC: React.FC<AnimalNPCProps> = ({
       }
 
       // Walk backward along the path toward the entrance
-      progressRef.current = Math.max(0.0, progressRef.current - delta * 0.45);
+      progressRef.current = Math.max(0.0, progressRef.current - delta * 0.48);
 
       if (progressRef.current <= 0.0) {
         if (!exitFinishedRef.current) {
@@ -136,7 +134,7 @@ export const AnimalNPC: React.FC<AnimalNPCProps> = ({
 
     // --- State B: Arriving / Walking In ---
     if (progressRef.current < 1.0) {
-      progressRef.current = Math.min(1.0, progressRef.current + delta * 0.42);
+      progressRef.current = Math.min(1.0, progressRef.current + delta * 0.45);
 
       const p = progressRef.current;
       const targetDist = p * total;
@@ -192,32 +190,35 @@ export const AnimalNPC: React.FC<AnimalNPCProps> = ({
       headRef.current.rotation.y = Math.cos(t * 1.2 + index) * 0.05;
     }
 
-    // Crisp floating order badge subtle floating bob and visibility
-    if (bubbleRef.current) {
-      const showBadge = !isLeaving && progressRef.current >= 0.92;
-      bubbleRef.current.visible = showBadge;
+    // Badge visibility and subtle floating bob
+    if (badgeRef.current) {
+      const showBadge = !isLeaving && progressRef.current >= 0.95;
+      badgeRef.current.visible = showBadge;
       if (showBadge) {
-        bubbleRef.current.position.y = 1.08 + Math.sin(t * 3.0 + index) * 0.035;
+        badgeRef.current.position.y = 1.08 + Math.sin(t * 3.0 + index) * 0.035;
       }
     }
   });
 
   const handleClick = (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
-    if (isLeaving) return;
+    if (npcState === 'leaving') return;
     haptic('light');
     onSelectNpc(order.id);
   };
 
-  const initialSlot = QUEUE_SLOTS[index] ?? QUEUE_SLOTS[1];
+  const initialPos =
+    npcState === 'arriving'
+      ? WAYPOINTS_BASE[0]
+      : (QUEUE_SLOTS[index] ?? QUEUE_SLOTS[1]);
 
   return (
     <group
       ref={groupRef}
-      position={[initialSlot[0], initialSlot[1], initialSlot[2]]}
+      position={[initialPos[0], initialPos[1], initialPos[2]]}
       onClick={handleClick}
       onPointerOver={(e) => {
-        if (isLeaving) return;
+        if (npcState === 'leaving') return;
         e.stopPropagation();
         setHovered(true);
         document.body.style.cursor = 'pointer';
@@ -442,8 +443,8 @@ export const AnimalNPC: React.FC<AnimalNPCProps> = ({
         </group>
       )}
 
-      {/* Floating Pill Badge using Drei Html (Visible only when arrived at the stall counter) */}
-      <group ref={bubbleRef} position={[0, 1.08, 0]} visible={!isLeaving && spawnTime === 0}>
+      {/* Floating Pill Badge using Drei Html (Visible only when waiting at the stall counter) */}
+      <group ref={badgeRef} position={[0, 1.08, 0]} visible={npcState === 'waiting'}>
         <Html
           center
           distanceFactor={8}
@@ -460,7 +461,7 @@ export const AnimalNPC: React.FC<AnimalNPCProps> = ({
       </group>
 
       {/* Cute Floating Heart Badge when leaving happily */}
-      {isLeaving && (
+      {npcState === 'leaving' && (
         <group position={[0, 1.08, 0]}>
           <Html
             center
@@ -476,7 +477,7 @@ export const AnimalNPC: React.FC<AnimalNPCProps> = ({
       )}
 
       {/* Subtle selection ring on hover */}
-      {hovered && !isLeaving && (
+      {hovered && npcState !== 'leaving' && (
         <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.34, 0.42, 18]} />
           <meshBasicMaterial color="#FACC15" side={THREE.DoubleSide} transparent opacity={0.75} />
