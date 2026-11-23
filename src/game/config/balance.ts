@@ -134,6 +134,18 @@ export const STARTING_RESOURCES: StartingResources = {
   },
 };
 
-export const WATER_UNIT_PRICE = 2;
-export const FERTILIZER_UNIT_PRICE = 15;
+export const WATER_BUY_AMOUNT = 5;
+export const WATER_BUY_PRICE = 15;
+export const WATER_UNIT_PRICE = 3;
+
+export const FERTILIZER_BUY_AMOUNT = 3;
+export const FERTILIZER_BUY_PRICE = 25;
+export const FERTILIZER_UNIT_PRICE = 9;
+
+export const WELL_MINIGAME_REWARD = 5;
+export const WELL_COOLDOWN_SEC = 120;
+
+export const COMPOST_MINIGAME_REWARD = 3;
+export const COMPOST_COOLDOWN_SEC = 180;
+
 export const PLOT_UNLOCK_COST = 100;

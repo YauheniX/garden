@@ -12,7 +12,11 @@ import type { WeatherType } from '../../game/config/balance';
 import { useGameStore } from '../../game/store/useGameStore';
 import { getTelegramUser, haptic } from '../../telegram/tma';
 
-export const TopHud: React.FC = () => {
+interface TopHudProps {
+  onOpenResources?: (tab: 'water' | 'fertilizer') => void;
+}
+
+export const TopHud: React.FC<TopHudProps> = ({ onOpenResources }) => {
   const coins = useGameStore((s) => s.coins);
   const water = useGameStore((s) => s.water);
   const fertilizer = useGameStore((s) => s.fertilizer);
@@ -93,18 +97,28 @@ export const TopHud: React.FC = () => {
         <div className="w-[1px] h-4 bg-[#2D241E]/15" />
 
         {/* Water */}
-        <div className="flex items-center gap-1.5" title="Water droplets">
+        <button
+          type="button"
+          onClick={() => onOpenResources?.('water')}
+          className="flex items-center gap-1.5 cursor-pointer hover:bg-[#2D241E]/5 px-2 py-1 -my-1 rounded-xl transition-all active:scale-95"
+          title="Water droplets — tap to replenish"
+        >
           <Droplets className="w-4 h-4 text-sky-500" />
           <span className="font-bold tracking-tight">{water}</span>
-        </div>
+        </button>
 
         <div className="w-[1px] h-4 bg-[#2D241E]/15" />
 
         {/* Fertilizer */}
-        <div className="flex items-center gap-1.5" title="Fertilizer">
+        <button
+          type="button"
+          onClick={() => onOpenResources?.('fertilizer')}
+          className="flex items-center gap-1.5 cursor-pointer hover:bg-[#2D241E]/5 px-2 py-1 -my-1 rounded-xl transition-all active:scale-95"
+          title="Fertilizer — tap to replenish"
+        >
           <Sparkles className="w-4 h-4 text-emerald-600" />
           <span className="font-bold tracking-tight">{fertilizer}</span>
-        </div>
+        </button>
 
         <div className="w-[1px] h-4 bg-[#2D241E]/15" />
 

@@ -1,9 +1,13 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import {
+  FERTILIZER_BUY_AMOUNT,
+  FERTILIZER_BUY_PRICE,
   FERTILIZER_UNIT_PRICE,
   PLOT_UNLOCK_COST,
   STARTING_RESOURCES,
+  WATER_BUY_AMOUNT,
+  WATER_BUY_PRICE,
   WATER_UNIT_PRICE,
   type FlowerQuality,
   type WeatherType,
@@ -332,10 +336,13 @@ export const useGameStore = create<GameStore>()(
         return true;
       },
 
-      buyWater: (qty = 5) => {
+      buyWater: (qty = WATER_BUY_AMOUNT) => {
         if (qty <= 0) return false;
         const state = get();
-        const totalCost = WATER_UNIT_PRICE * qty;
+        const totalCost =
+          qty === WATER_BUY_AMOUNT
+            ? WATER_BUY_PRICE
+            : WATER_UNIT_PRICE * qty;
         if (state.coins < totalCost) return false;
 
         set({
@@ -347,10 +354,13 @@ export const useGameStore = create<GameStore>()(
         return true;
       },
 
-      buyFertilizer: (qty = 1) => {
+      buyFertilizer: (qty = FERTILIZER_BUY_AMOUNT) => {
         if (qty <= 0) return false;
         const state = get();
-        const totalCost = FERTILIZER_UNIT_PRICE * qty;
+        const totalCost =
+          qty === FERTILIZER_BUY_AMOUNT
+            ? FERTILIZER_BUY_PRICE
+            : FERTILIZER_UNIT_PRICE * qty;
         if (state.coins < totalCost) return false;
 
         set({

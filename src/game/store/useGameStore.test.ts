@@ -270,6 +270,42 @@ describe('useGameStore', () => {
       expect(state.seeds.daisy).toBe(6);
     });
 
+    it('buys water using balance constants and adds to inventory', () => {
+      useGameStore.setState({ coins: 50, water: 5 });
+
+      const success = useGameStore.getState().buyWater(5);
+      expect(success).toBe(true);
+
+      const state = useGameStore.getState();
+      expect(state.coins).toBe(35); // 50 - 15
+      expect(state.water).toBe(10); // 5 + 5
+    });
+
+    it('buys fertilizer using balance constants and adds to inventory', () => {
+      useGameStore.setState({ coins: 50, fertilizer: 2 });
+
+      const success = useGameStore.getState().buyFertilizer(3);
+      expect(success).toBe(true);
+
+      const state = useGameStore.getState();
+      expect(state.coins).toBe(25); // 50 - 25
+      expect(state.fertilizer).toBe(5); // 2 + 3
+    });
+
+    it('refuses to buy water or fertilizer when coins are insufficient', () => {
+      useGameStore.setState({ coins: 5, water: 2, fertilizer: 1 });
+
+      const waterSuccess = useGameStore.getState().buyWater();
+      expect(waterSuccess).toBe(false);
+
+      const fertSuccess = useGameStore.getState().buyFertilizer();
+      expect(fertSuccess).toBe(false);
+
+      const state = useGameStore.getState();
+      expect(state.water).toBe(2);
+      expect(state.fertilizer).toBe(1);
+    });
+
     it('unlocks a plot when player has enough coins', () => {
       useGameStore.setState({ coins: 200 });
 
@@ -300,6 +336,24 @@ describe('useGameStore', () => {
       const secondClaim = useGameStore
         .getState()
         .claimMinigameReward('well', 5, 30);
+      expect(secondClaim).toBe(false);
+    });
+
+    it('claims compost reward and enforces cooldown', () => {
+      const initialFertilizer = useGameStore.getState().fertilizer;
+
+      const success = useGameStore
+        .getState()
+        .claimMinigameReward('compost', 3, 45);
+      expect(success).toBe(true);
+
+      const state = useGameStore.getState();
+      expect(state.fertilizer).toBe(initialFertilizer + 3);
+      expect(state.minigameCooldowns.compostReadyAt).toBeGreaterThan(Date.now());
+
+      const secondClaim = useGameStore
+        .getState()
+        .claimMinigameReward('compost', 3, 45);
       expect(secondClaim).toBe(false);
     });
   });

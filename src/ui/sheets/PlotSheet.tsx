@@ -16,9 +16,14 @@ import { useGameStore } from '../../game/store/useGameStore';
 interface PlotSheetProps {
   plotId: string | null;
   onClose: () => void;
+  onOpenResources?: (tab: 'water' | 'fertilizer') => void;
 }
 
-export const PlotSheet: React.FC<PlotSheetProps> = ({ plotId, onClose }) => {
+export const PlotSheet: React.FC<PlotSheetProps> = ({
+  plotId,
+  onClose,
+  onOpenResources,
+}) => {
   const plots = useGameStore((s) => s.plots);
   const coins = useGameStore((s) => s.coins);
   const water = useGameStore((s) => s.water);
@@ -80,6 +85,24 @@ export const PlotSheet: React.FC<PlotSheetProps> = ({ plotId, onClose }) => {
 
   const handleHarvest = () => {
     harvestPlot(plot.id);
+  };
+
+  const handleWaterClick = () => {
+    if (plot.wateredAt) return;
+    if (!isRainy && water < 1) {
+      onOpenResources?.('water');
+      return;
+    }
+    waterPlot(plot.id);
+  };
+
+  const handleFertilizeClick = () => {
+    if (plot.fertilized) return;
+    if (fertilizer < 1) {
+      onOpenResources?.('fertilizer');
+      return;
+    }
+    fertilizePlot(plot.id);
   };
 
   return (
@@ -315,27 +338,33 @@ export const PlotSheet: React.FC<PlotSheetProps> = ({ plotId, onClose }) => {
                   {/* Water Button */}
                   <button
                     type="button"
-                    disabled={Boolean(plot.wateredAt) || (!isRainy && water < 1)}
-                    onClick={() => waterPlot(plot.id)}
-                    className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white shadow-sm active:scale-95 transition-all"
+                    disabled={Boolean(plot.wateredAt)}
+                    onClick={handleWaterClick}
+                    className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white shadow-sm active:scale-95 transition-all cursor-pointer"
                   >
                     <Droplets className="w-3.5 h-3.5" />
                     {plot.wateredAt
                       ? 'Watered ✨'
                       : isRainy
                       ? 'Water (Free Rain)'
+                      : water < 1
+                      ? 'Get Water (💧 0)'
                       : `Water (💧 ${water})`}
                   </button>
 
                   {/* Fertilize Button */}
                   <button
                     type="button"
-                    disabled={plot.fertilized || fertilizer < 1}
-                    onClick={() => fertilizePlot(plot.id)}
-                    className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white shadow-sm active:scale-95 transition-all"
+                    disabled={plot.fertilized}
+                    onClick={handleFertilizeClick}
+                    className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white shadow-sm active:scale-95 transition-all cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    {plot.fertilized ? 'Fertilized 🌟' : `Fertilize (🌱 ${fertilizer})`}
+                    {plot.fertilized
+                      ? 'Fertilized 🌟'
+                      : fertilizer < 1
+                      ? 'Get Fertilizer (🌱 0)'
+                      : `Fertilize (🌱 ${fertilizer})`}
                   </button>
                 </div>
               ) : (
